@@ -304,14 +304,24 @@ int receiver_mode(const config_t *config) {
                     inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
         }
         
-        // 接続処理
-        handle_connection(client_sock, config);
-        
-        close(client_sock);
-        if (!config->quiet) {
-            fprintf(stderr, "Client disconnected\n");
+        // 新しいプロセスを作成して接続を処理
+        pid_t connection_pid = fork();
+        if (connection_pid == 0) {
+            // 子プロセス: この接続を処理
+            close(server_sock); // 子プロセスではサーバーソケットは不要
+            handle_connection(client_sock, config);
+            close(client_sock);
+            if (!config->quiet) {
+                fprintf(stderr, "Client disconnected\n");
+            }
+            exit(0);
+        } else if (connection_pid > 0) {
+            // 親プロセス: 子プロセスは独立して動作するので、ソケットを閉じて次の接続を待つ
+            close(client_sock);
+        } else {
+            perror("fork");
+            close(client_sock);
         }
-        break; // 一つの接続のみ処理
     }
     
     close(server_sock);
