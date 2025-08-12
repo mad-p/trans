@@ -11,7 +11,13 @@ void cleanup_and_exit(int sig) {
 void hex_dump_to_file(FILE *file, const char *prefix, const unsigned char *data, size_t len) {
     if (!file || !data || len == 0) return;
     
-    fprintf(file, "%s", prefix);
+    struct timeval tv;
+    struct tm *tm_info;
+    gettimeofday(&tv, NULL);
+    tm_info = localtime(&tv.tv_sec);
+    
+    fprintf(file, "%02d:%02d:%02d.%06d %s", 
+            tm_info->tm_hour, tm_info->tm_min, tm_info->tm_sec, (int)tv.tv_usec, prefix);
     for (size_t i = 0; i < len; i++) {
         fprintf(file, "%02x", data[i]);
         if (i < len - 1) {

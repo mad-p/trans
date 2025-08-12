@@ -11,6 +11,8 @@
 #include <sys/wait.h>
 #include <getopt.h>
 #include <signal.h>
+#include <time.h>
+#include <sys/time.h>
 
 #define BUFFER_SIZE 256
 #define MAX_ENCODED_SIZE (BUFFER_SIZE * 4)
