@@ -1,78 +1,199 @@
 #include "trans.h"
 
-void handle_connection(int sockfd, encode_method_t method, int is_sender) {
-    (void)is_sender;
-    pid_t pid1, pid2;
-    unsigned char buffer[BUFFER_SIZE];
-    char encoded_buffer[MAX_ENCODED_SIZE];
-    unsigned char decoded_buffer[BUFFER_SIZE];
-    
-    pid1 = fork();
-    if (pid1 == 0) {
-        // 子プロセス1: 標準入力 -> エンコード -> ソケット
-        ssize_t bytes_read, bytes_encoded, bytes_sent;
-        
-        while ((bytes_read = read(STDIN_FILENO, buffer, BUFFER_SIZE)) > 0) {
-            if (method == METHOD_UUENCODE) {
-                bytes_encoded = uuencode_data(buffer, bytes_read, encoded_buffer);
-            } else {
-                bytes_encoded = escape_encode_data(buffer, bytes_read, encoded_buffer);
-            }
-            
-            bytes_sent = 0;
-            while (bytes_sent < bytes_encoded) {
-                ssize_t sent = write(sockfd, encoded_buffer + bytes_sent, 
-                                   bytes_encoded - bytes_sent);
-                if (sent <= 0) {
-                    exit(1);
-                }
-                bytes_sent += sent;
-            }
+void handle_connection(int sockfd, const config_t *config) {
+    if (config->system_command) {
+        int to_child_pipe[2];
+        int from_child_pipe[2];
+
+        if (pipe(to_child_pipe) == -1 || pipe(from_child_pipe) == -1) {
+            perror("pipe");
+            return;
         }
-        
-        shutdown(sockfd, SHUT_WR);
-        exit(0);
-    } else if (pid1 > 0) {
-        pid2 = fork();
+
+        pid_t cmd_pid = fork();
+
+        if (cmd_pid < 0) {
+            perror("fork for command");
+            close(to_child_pipe[0]);
+            close(to_child_pipe[1]);
+            close(from_child_pipe[0]);
+            close(from_child_pipe[1]);
+            return;
+        }
+
+        if (cmd_pid == 0) { // Child process for the command
+            close(to_child_pipe[1]);
+            dup2(to_child_pipe[0], STDIN_FILENO);
+            close(to_child_pipe[0]);
+
+            close(from_child_pipe[0]);
+            dup2(from_child_pipe[1], STDOUT_FILENO);
+            close(from_child_pipe[1]);
+
+            execl("/bin/sh", "sh", "-c", config->system_command, (char *)NULL);
+            perror("execl");
+            exit(1);
+        }
+
+        // Parent process
+        close(to_child_pipe[0]);
+        close(from_child_pipe[1]);
+        int to_cmd_fd = to_child_pipe[1];
+        int from_cmd_fd = from_child_pipe[0];
+
+        pid_t pid1, pid2;
+
+        pid1 = fork(); // Process 1: command stdout -> encode -> socket
+        if (pid1 == 0) {
+            close(to_cmd_fd);
+            unsigned char buffer[BUFFER_SIZE];
+            char encoded_buffer[MAX_ENCODED_SIZE];
+            ssize_t bytes_read, bytes_encoded, bytes_sent;
+
+            while ((bytes_read = read(from_cmd_fd, buffer, BUFFER_SIZE)) > 0) {
+                if (config->method == METHOD_UUENCODE) {
+                    bytes_encoded = uuencode_data(buffer, bytes_read, encoded_buffer);
+                } else {
+                    bytes_encoded = escape_encode_data(buffer, bytes_read, encoded_buffer);
+                }
+
+                bytes_sent = 0;
+                while (bytes_sent < bytes_encoded) {
+                    ssize_t sent = write(sockfd, encoded_buffer + bytes_sent, bytes_encoded - bytes_sent);
+                    if (sent <= 0) {
+                        //perror("write to socket");
+                        exit(1);
+                    }
+                    bytes_sent += sent;
+                }
+            }
+            close(from_cmd_fd);
+            shutdown(sockfd, SHUT_WR);
+            exit(0);
+        }
+
+        pid2 = fork(); // Process 2: socket -> decode -> command stdin
         if (pid2 == 0) {
-            // 子プロセス2: ソケット -> デコード -> 標準出力
+            close(from_cmd_fd);
+            char encoded_buffer[MAX_ENCODED_SIZE];
+            unsigned char decoded_buffer[BUFFER_SIZE];
             ssize_t bytes_received, bytes_decoded, bytes_written;
-            
+
             while ((bytes_received = read(sockfd, encoded_buffer, MAX_ENCODED_SIZE - 1)) > 0) {
                 encoded_buffer[bytes_received] = '\0';
-                
-                if (method == METHOD_UUENCODE) {
+
+                if (config->method == METHOD_UUENCODE) {
                     bytes_decoded = uudecode_data(encoded_buffer, bytes_received, decoded_buffer);
                 } else {
                     bytes_decoded = escape_decode_data(encoded_buffer, bytes_received, decoded_buffer);
                 }
-                
+
                 bytes_written = 0;
                 while (bytes_written < bytes_decoded) {
-                    ssize_t written = write(STDOUT_FILENO, decoded_buffer + bytes_written, 
-                                          bytes_decoded - bytes_written);
+                    ssize_t written = write(to_cmd_fd, decoded_buffer + bytes_written, bytes_decoded - bytes_written);
                     if (written <= 0) {
+                        //perror("write to command");
                         exit(1);
                     }
                     bytes_written += written;
                 }
             }
-            
+            close(to_cmd_fd);
             exit(0);
-        } else if (pid2 > 0) {
-            // 親プロセス: 両方の子プロセスの終了を待つ
-            int status;
+        }
+
+        // Parent waits for all children
+        int status;
+        if (pid1 > 0) {
             waitpid(pid1, &status, 0);
+        }
+        // Once the reading from the command is done, we can close the writing pipe to it.
+        close(to_cmd_fd);
+
+        if (pid2 > 0) {
             waitpid(pid2, &status, 0);
+        }
+        
+        if (cmd_pid > 0) {
+             kill(cmd_pid, SIGTERM);
+             waitpid(cmd_pid, &status, 0);
+        }
+        close(from_cmd_fd);
+
+    } else {
+        // Original logic
+        pid_t pid1, pid2;
+        unsigned char buffer[BUFFER_SIZE];
+        char encoded_buffer[MAX_ENCODED_SIZE];
+        unsigned char decoded_buffer[BUFFER_SIZE];
+
+        pid1 = fork();
+        if (pid1 == 0) {
+            // 子プロセス1: 標準入力 -> エンコード -> ソケット
+            ssize_t bytes_read, bytes_encoded, bytes_sent;
+
+            while ((bytes_read = read(STDIN_FILENO, buffer, BUFFER_SIZE)) > 0) {
+                if (config->method == METHOD_UUENCODE) {
+                    bytes_encoded = uuencode_data(buffer, bytes_read, encoded_buffer);
+                } else {
+                    bytes_encoded = escape_encode_data(buffer, bytes_read, encoded_buffer);
+                }
+
+                bytes_sent = 0;
+                while (bytes_sent < bytes_encoded) {
+                    ssize_t sent = write(sockfd, encoded_buffer + bytes_sent,
+                                       bytes_encoded - bytes_sent);
+                    if (sent <= 0) {
+                        exit(1);
+                    }
+                    bytes_sent += sent;
+                }
+            }
+
+            shutdown(sockfd, SHUT_WR);
+            exit(0);
+        } else if (pid1 > 0) {
+            pid2 = fork();
+            if (pid2 == 0) {
+                // 子プロセス2: ソケット -> デコード -> 標準出力
+                ssize_t bytes_received, bytes_decoded, bytes_written;
+
+                while ((bytes_received = read(sockfd, encoded_buffer, MAX_ENCODED_SIZE - 1)) > 0) {
+                    encoded_buffer[bytes_received] = '\0';
+
+                    if (config->method == METHOD_UUENCODE) {
+                        bytes_decoded = uudecode_data(encoded_buffer, bytes_received, decoded_buffer);
+                    } else {
+                        bytes_decoded = escape_decode_data(encoded_buffer, bytes_received, decoded_buffer);
+                    }
+
+                    bytes_written = 0;
+                    while (bytes_written < bytes_decoded) {
+                        ssize_t written = write(STDOUT_FILENO, decoded_buffer + bytes_written,
+                                              bytes_decoded - bytes_written);
+                        if (written <= 0) {
+                            exit(1);
+                        }
+                        bytes_written += written;
+                    }
+                }
+
+                exit(0);
+            } else if (pid2 > 0) {
+                // 親プロセス: 両方の子プロセスの終了を待つ
+                int status;
+                waitpid(pid1, &status, 0);
+                waitpid(pid2, &status, 0);
+            } else {
+                perror("fork");
+                kill(pid1, SIGTERM);
+                waitpid(pid1, NULL, 0);
+                exit(1);
+            }
         } else {
             perror("fork");
-            kill(pid1, SIGTERM);
-            waitpid(pid1, NULL, 0);
             exit(1);
         }
-    } else {
-        perror("fork");
-        exit(1);
     }
 }
 
@@ -132,7 +253,7 @@ int sender_mode(const config_t *config) {
                 inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
         
         // 接続処理
-        handle_connection(client_sock, config->method, 1);
+        handle_connection(client_sock, config);
         
         close(client_sock);
         fprintf(stderr, "Client disconnected\n");
@@ -176,7 +297,7 @@ int receiver_mode(const config_t *config) {
     fprintf(stderr, "Connected to server\n");
     
     // 接続処理
-    handle_connection(client_sock, config->method, 0);
+    handle_connection(client_sock, config);
     
     close(client_sock);
     fprintf(stderr, "Disconnected from server\n");

@@ -30,6 +30,7 @@ typedef struct {
     int port;
     encode_method_t method;
     char *host;
+    char *system_command;
 } config_t;
 
 // エンコード/デコード関数
@@ -41,7 +42,7 @@ size_t escape_decode_data(const char *input, size_t input_len, unsigned char *ou
 // メイン機能
 int sender_mode(const config_t *config);
 int receiver_mode(const config_t *config);
-void handle_connection(int sockfd, encode_method_t method, int is_sender);
+void handle_connection(int sockfd, const config_t *config);
 
 // グローバル変数
 extern volatile int running;
