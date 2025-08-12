@@ -161,7 +161,7 @@ void handle_connection(int sockfd, const config_t *config) {
         close(from_cmd_fd);
 
     } else {
-        // Original logic
+        // non-command mode
         pid_t pid1, pid2;
         unsigned char buffer[BUFFER_SIZE];
         char encoded_buffer[MAX_ENCODED_SIZE];
