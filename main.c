@@ -9,13 +9,14 @@ void cleanup_and_exit(int sig) {
 }
 
 void print_usage(const char *program_name) {
-    fprintf(stderr, "Usage: %s -m <send|recv|to|from> -p <port> [-h <host>] [-e <uuencode|escape>] [-s <command>]\n", program_name);
+    fprintf(stderr, "Usage: %s -m <send|recv|to|from> -p <port> [-h <host>] [-e <uuencode|escape>] [-s <command>] [-q]\n", program_name);
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "  -m, --mode     Mode: send/to (connector) or recv/from (listener)\n");
     fprintf(stderr, "  -p, --port     TCP port number\n");
     fprintf(stderr, "  -h, --host     Host (for sender mode, default: 127.0.0.1)\n");
     fprintf(stderr, "  -e, --encode   Encoding method: uuencode or escape (default: escape)\n");
     fprintf(stderr, "  -s, --system   Connect to command instead of stdio\n");
+    fprintf(stderr, "  -q, --quiet    Suppress stderr output\n");
     fprintf(stderr, "  --help         Show this help message\n");
 }
 
@@ -26,6 +27,7 @@ void parse_arguments(int argc, char *argv[], config_t *config) {
         {"host", required_argument, 0, 'h'},
         {"encode", required_argument, 0, 'e'},
         {"system", required_argument, 0, 's'},
+        {"quiet", no_argument, 0, 'q'},
         {"help", no_argument, 0, 0},
         {0, 0, 0, 0}
     };
@@ -35,11 +37,12 @@ void parse_arguments(int argc, char *argv[], config_t *config) {
     config->method = METHOD_ESCAPE;
     config->host = "127.0.0.1";
     config->system_command = NULL;
+    config->quiet = 0;
 
     int c;
     int option_index = 0;
 
-    while ((c = getopt_long(argc, argv, "m:p:h:e:s:", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(argc, argv, "m:p:h:e:s:q", long_options, &option_index)) != -1) {
         switch (c) {
             case 'm':
                 if (strcmp(optarg, "send") == 0 || strcmp(optarg, "to") == 0) {
@@ -73,6 +76,9 @@ void parse_arguments(int argc, char *argv[], config_t *config) {
                 break;
             case 's':
                 config->system_command = optarg;
+                break;
+            case 'q':
+                config->quiet = 1;
                 break;
             case 0:
                 if (strcmp(long_options[option_index].name, "help") == 0) {

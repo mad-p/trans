@@ -31,6 +31,7 @@ typedef struct {
     encode_method_t method;
     char *host;
     char *system_command;
+    int quiet;
 } config_t;
 
 // エンコード/デコード関数

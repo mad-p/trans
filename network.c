@@ -214,26 +214,34 @@ int sender_mode(const config_t *config) {
     server_addr.sin_port = htons(config->port);
     
     if (inet_pton(AF_INET, config->host, &server_addr.sin_addr) <= 0) {
-        fprintf(stderr, "Invalid address: %s\n", config->host);
+        if (!config->quiet) {
+            fprintf(stderr, "Invalid address: %s\n", config->host);
+        }
         close(client_sock);
         return 1;
     }
     
     // 接続
-    fprintf(stderr, "Connecting to %s:%d...\n", config->host, config->port);
+    if (!config->quiet) {
+        fprintf(stderr, "Connecting to %s:%d...\n", config->host, config->port);
+    }
     if (connect(client_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("connect");
         close(client_sock);
         return 1;
     }
     
-    fprintf(stderr, "Connected to server\n");
+    if (!config->quiet) {
+        fprintf(stderr, "Connected to server\n");
+    }
     
     // 接続処理
     handle_connection(client_sock, config);
     
     close(client_sock);
-    fprintf(stderr, "Disconnected from server\n");
+    if (!config->quiet) {
+        fprintf(stderr, "Disconnected from server\n");
+    }
     return 0;
 }
 
@@ -277,7 +285,9 @@ int receiver_mode(const config_t *config) {
         return 1;
     }
     
-    fprintf(stderr, "Waiting for connection on port %d...\n", config->port);
+    if (!config->quiet) {
+        fprintf(stderr, "Waiting for connection on port %d...\n", config->port);
+    }
     
     while (running) {
         // 接続待ち
@@ -289,14 +299,18 @@ int receiver_mode(const config_t *config) {
             break;
         }
         
-        fprintf(stderr, "Client connected from %s:%d\n", 
-                inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+        if (!config->quiet) {
+            fprintf(stderr, "Client connected from %s:%d\n", 
+                    inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+        }
         
         // 接続処理
         handle_connection(client_sock, config);
         
         close(client_sock);
-        fprintf(stderr, "Client disconnected\n");
+        if (!config->quiet) {
+            fprintf(stderr, "Client disconnected\n");
+        }
         break; // 一つの接続のみ処理
     }
     
