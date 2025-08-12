@@ -97,7 +97,7 @@ size_t escape_encode_data(const unsigned char *input, size_t input_len, unsigned
         
         if (c == 0x0d || c == 0x0a || c == 0x1c || c == 0x7f || c == 0x5c) {
             output[j++] = 0x5c;
-            sprintf(&output[j], "%02x", c);
+            sprintf((char *)&output[j], "%02x", c);
             j += 2;
         } else {
             output[j++] = c;
