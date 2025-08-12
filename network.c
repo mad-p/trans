@@ -57,22 +57,22 @@ void handle_connection(int sockfd, const config_t *config) {
 
             while ((bytes_read = read(from_cmd_fd, buffer, BUFFER_SIZE)) > 0) {
                 if (log_file) {
-                    hex_dump_to_file(log_file, "toenc:", buffer, bytes_read);
+                    hex_dump_to_file(log_file, "todec:", buffer, bytes_read);
                 }
 
                 if (config->method == METHOD_UUENCODE) {
-                    bytes_encoded = uuencode_data(buffer, bytes_read, encoded_buffer);
+                    bytes_decoded = uudecode_data((char*)buffer, bytes_read, decoded_buffer);
                 } else {
-                    bytes_encoded = escape_encode_data(buffer, bytes_read, encoded_buffer);
+                    bytes_decoded = escape_decode_data((char*)buffer, bytes_read, decoded_buffer);
                 }
 
                 if (log_file) {
-                    hex_dump_to_file(log_file, "enc-d:", (unsigned char*)encoded_buffer, bytes_encoded);
+                    hex_dump_to_file(log_file, "dec-d:", decoded_buffer, bytes_decoded);
                 }
 
                 bytes_sent = 0;
-                while (bytes_sent < bytes_encoded) {
-                    ssize_t sent = write(sockfd, encoded_buffer + bytes_sent, bytes_encoded - bytes_sent);
+                while (bytes_sent < bytes_decoded) {
+                    ssize_t sent = write(sockfd, decoded_buffer + bytes_sent, bytes_decoded - bytes_sent);
                     if (sent <= 0) {
                         //perror("write to socket");
                         exit(1);
@@ -104,26 +104,24 @@ void handle_connection(int sockfd, const config_t *config) {
                 log_file = fopen(config->log_port_stdio_file, "a");
             }
 
-            while ((bytes_received = read(sockfd, encoded_buffer, MAX_ENCODED_SIZE - 1)) > 0) {
-                encoded_buffer[bytes_received] = '\0';
-
+            while ((bytes_received = read(sockfd, buffer, BUFFER_SIZE)) > 0) {
                 if (log_file) {
-                    hex_dump_to_file(log_file, "todec:", (unsigned char*)encoded_buffer, bytes_received);
+                    hex_dump_to_file(log_file, "toenc:", buffer, bytes_received);
                 }
 
                 if (config->method == METHOD_UUENCODE) {
-                    bytes_decoded = uudecode_data(encoded_buffer, bytes_received, decoded_buffer);
+                    bytes_encoded = uuencode_data(buffer, bytes_received, encoded_buffer);
                 } else {
-                    bytes_decoded = escape_decode_data(encoded_buffer, bytes_received, decoded_buffer);
+                    bytes_encoded = escape_encode_data(buffer, bytes_received, encoded_buffer);
                 }
 
                 if (log_file) {
-                    hex_dump_to_file(log_file, "dec-d:", decoded_buffer, bytes_decoded);
+                    hex_dump_to_file(log_file, "enc-d:", (unsigned char*)encoded_buffer, bytes_encoded);
                 }
 
                 bytes_written = 0;
-                while (bytes_written < bytes_decoded) {
-                    ssize_t written = write(to_cmd_fd, decoded_buffer + bytes_written, bytes_decoded - bytes_written);
+                while (bytes_written < bytes_encoded) {
+                    ssize_t written = write(to_cmd_fd, encoded_buffer + bytes_written, bytes_encoded - bytes_written);
                     if (written <= 0) {
                         //perror("write to command");
                         exit(1);
@@ -179,23 +177,23 @@ void handle_connection(int sockfd, const config_t *config) {
 
             while ((bytes_read = read(STDIN_FILENO, buffer, BUFFER_SIZE)) > 0) {
                 if (log_file) {
-                    hex_dump_to_file(log_file, "toenc:", buffer, bytes_read);
+                    hex_dump_to_file(log_file, "todec:", buffer, bytes_read);
                 }
 
                 if (config->method == METHOD_UUENCODE) {
-                    bytes_encoded = uuencode_data(buffer, bytes_read, encoded_buffer);
+                    bytes_decoded = uudecode_data((char*)buffer, bytes_read, decoded_buffer);
                 } else {
-                    bytes_encoded = escape_encode_data(buffer, bytes_read, encoded_buffer);
+                    bytes_decoded = escape_decode_data((char*)buffer, bytes_read, decoded_buffer);
                 }
 
                 if (log_file) {
-                    hex_dump_to_file(log_file, "enc-d:", (unsigned char*)encoded_buffer, bytes_encoded);
+                    hex_dump_to_file(log_file, "dec-d:", decoded_buffer, bytes_decoded);
                 }
 
                 bytes_sent = 0;
-                while (bytes_sent < bytes_encoded) {
-                    ssize_t sent = write(sockfd, encoded_buffer + bytes_sent,
-                                       bytes_encoded - bytes_sent);
+                while (bytes_sent < bytes_decoded) {
+                    ssize_t sent = write(sockfd, decoded_buffer + bytes_sent,
+                                       bytes_decoded - bytes_sent);
                     if (sent <= 0) {
                         exit(1);
                     }
@@ -222,27 +220,25 @@ void handle_connection(int sockfd, const config_t *config) {
                     log_file = fopen(config->log_port_stdio_file, "a");
                 }
 
-                while ((bytes_received = read(sockfd, encoded_buffer, MAX_ENCODED_SIZE - 1)) > 0) {
-                    encoded_buffer[bytes_received] = '\0';
-
+                while ((bytes_received = read(sockfd, buffer, BUFFER_SIZE)) > 0) {
                     if (log_file) {
-                        hex_dump_to_file(log_file, "todec:", (unsigned char*)encoded_buffer, bytes_received);
+                        hex_dump_to_file(log_file, "toenc:", buffer, bytes_received);
                     }
 
                     if (config->method == METHOD_UUENCODE) {
-                        bytes_decoded = uudecode_data(encoded_buffer, bytes_received, decoded_buffer);
+                        bytes_encoded = uuencode_data(buffer, bytes_received, encoded_buffer);
                     } else {
-                        bytes_decoded = escape_decode_data(encoded_buffer, bytes_received, decoded_buffer);
+                        bytes_encoded = escape_encode_data(buffer, bytes_received, encoded_buffer);
                     }
 
                     if (log_file) {
-                        hex_dump_to_file(log_file, "dec-d:", decoded_buffer, bytes_decoded);
+                        hex_dump_to_file(log_file, "enc-d:", (unsigned char*)encoded_buffer, bytes_encoded);
                     }
 
                     bytes_written = 0;
-                    while (bytes_written < bytes_decoded) {
-                        ssize_t written = write(STDOUT_FILENO, decoded_buffer + bytes_written,
-                                              bytes_decoded - bytes_written);
+                    while (bytes_written < bytes_encoded) {
+                        ssize_t written = write(STDOUT_FILENO, encoded_buffer + bytes_written,
+                                              bytes_encoded - bytes_written);
                         if (written <= 0) {
                             exit(1);
                         }
