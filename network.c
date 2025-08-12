@@ -43,12 +43,12 @@ void handle_connection(int sockfd, const config_t *config) {
 
         pid_t pid1, pid2;
 
-        pid1 = fork(); // Process 1: command stdout -> encode -> socket
+        pid1 = fork(); // Process 1: command stdout -> decode -> socket
         if (pid1 == 0) {
             close(to_cmd_fd);
             unsigned char buffer[BUFFER_SIZE];
-            char encoded_buffer[MAX_ENCODED_SIZE];
-            ssize_t bytes_read, bytes_encoded, bytes_sent;
+            unsigned char decoded_buffer[MAX_ENCODED_SIZE];
+            ssize_t bytes_read, bytes_decoded, bytes_sent;
             FILE *log_file = NULL;
 
             if (config->log_stdio_port_file) {
@@ -61,9 +61,9 @@ void handle_connection(int sockfd, const config_t *config) {
                 }
 
                 if (config->method == METHOD_UUENCODE) {
-                    bytes_decoded = uudecode_data((char*)buffer, bytes_read, decoded_buffer);
+                    bytes_decoded = uudecode_data(buffer, bytes_read, decoded_buffer);
                 } else {
-                    bytes_decoded = escape_decode_data((char*)buffer, bytes_read, decoded_buffer);
+                    bytes_decoded = escape_decode_data(buffer, bytes_read, decoded_buffer);
                 }
 
                 if (log_file) {
@@ -92,12 +92,12 @@ void handle_connection(int sockfd, const config_t *config) {
             exit(0);
         }
 
-        pid2 = fork(); // Process 2: socket -> decode -> command stdin
+        pid2 = fork(); // Process 2: socket -> encode -> command stdin
         if (pid2 == 0) {
             close(from_cmd_fd);
-            char encoded_buffer[MAX_ENCODED_SIZE];
-            unsigned char decoded_buffer[BUFFER_SIZE];
-            ssize_t bytes_received, bytes_decoded, bytes_written;
+            unsigned char buffer[MAX_ENCODED_SIZE];
+            unsigned char encoded_buffer[BUFFER_SIZE];
+            ssize_t bytes_received, bytes_encoded, bytes_written;
             FILE *log_file = NULL;
 
             if (config->log_port_stdio_file) {
@@ -162,13 +162,13 @@ void handle_connection(int sockfd, const config_t *config) {
         // non-command mode
         pid_t pid1, pid2;
         unsigned char buffer[BUFFER_SIZE];
-        char encoded_buffer[MAX_ENCODED_SIZE];
+        unsigned char encoded_buffer[MAX_ENCODED_SIZE];
         unsigned char decoded_buffer[BUFFER_SIZE];
 
         pid1 = fork();
         if (pid1 == 0) {
-            // 子プロセス1: 標準入力 -> エンコード -> ソケット
-            ssize_t bytes_read, bytes_encoded, bytes_sent;
+            // 子プロセス1: 標準入力 -> デコード -> ソケット
+            ssize_t bytes_read, bytes_decoded, bytes_sent;
             FILE *log_file = NULL;
 
             if (config->log_stdio_port_file) {
@@ -181,9 +181,9 @@ void handle_connection(int sockfd, const config_t *config) {
                 }
 
                 if (config->method == METHOD_UUENCODE) {
-                    bytes_decoded = uudecode_data((char*)buffer, bytes_read, decoded_buffer);
+                    bytes_decoded = uudecode_data(buffer, bytes_read, decoded_buffer);
                 } else {
-                    bytes_decoded = escape_decode_data((char*)buffer, bytes_read, decoded_buffer);
+                    bytes_decoded = escape_decode_data(buffer, bytes_read, decoded_buffer);
                 }
 
                 if (log_file) {
@@ -212,8 +212,8 @@ void handle_connection(int sockfd, const config_t *config) {
         } else if (pid1 > 0) {
             pid2 = fork();
             if (pid2 == 0) {
-                // 子プロセス2: ソケット -> デコード -> 標準出力
-                ssize_t bytes_received, bytes_decoded, bytes_written;
+                // 子プロセス2: ソケット -> エンコード -> 標準出力
+                ssize_t bytes_received, bytes_encoded, bytes_written;
                 FILE *log_file = NULL;
 
                 if (config->log_port_stdio_file) {

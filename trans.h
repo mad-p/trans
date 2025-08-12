@@ -37,10 +37,10 @@ typedef struct {
 } config_t;
 
 // エンコード/デコード関数
-size_t uuencode_data(const unsigned char *input, size_t input_len, char *output);
-size_t uudecode_data(const char *input, size_t input_len, unsigned char *output);
-size_t escape_encode_data(const unsigned char *input, size_t input_len, char *output);
-size_t escape_decode_data(const char *input, size_t input_len, unsigned char *output);
+size_t uuencode_data(const unsigned char *input, size_t input_len, unsigned char *output);
+size_t uudecode_data(const unsigned char *input, size_t input_len, unsigned char *output);
+size_t escape_encode_data(const unsigned char *input, size_t input_len, unsigned char *output);
+size_t escape_decode_data(const unsigned char *input, size_t input_len, unsigned char *output);
 
 // メイン機能
 int sender_mode(const config_t *config);

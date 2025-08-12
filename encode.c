@@ -1,7 +1,7 @@
 #include "trans.h"
 #include <ctype.h>
 
-size_t uuencode_data(const unsigned char *input, size_t input_len, char *output) {
+size_t uuencode_data(const unsigned char *input, size_t input_len, unsigned char *output) {
     size_t i, j = 0;
     size_t bytes_processed = 0;
     
@@ -35,7 +35,7 @@ size_t uuencode_data(const unsigned char *input, size_t input_len, char *output)
     return j;
 }
 
-size_t uudecode_data(const char *input, size_t input_len, unsigned char *output) {
+size_t uudecode_data(const unsigned char *input, size_t input_len, unsigned char *output) {
     size_t i = 0, j = 0;
     
     while (i < input_len) {
@@ -89,7 +89,7 @@ size_t uudecode_data(const char *input, size_t input_len, unsigned char *output)
     return j;
 }
 
-size_t escape_encode_data(const unsigned char *input, size_t input_len, char *output) {
+size_t escape_encode_data(const unsigned char *input, size_t input_len, unsigned char *output) {
     size_t i, j = 0;
     
     for (i = 0; i < input_len; i++) {
@@ -108,7 +108,7 @@ size_t escape_encode_data(const unsigned char *input, size_t input_len, char *ou
     return j;
 }
 
-size_t escape_decode_data(const char *input, size_t input_len, unsigned char *output) {
+size_t escape_decode_data(const unsigned char *input, size_t input_len, unsigned char *output) {
     size_t i = 0, j = 0;
     
     while (i < input_len) {
