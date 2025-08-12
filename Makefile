@@ -47,3 +47,12 @@ help:
 	@echo "  debug    - Build with debug flags"
 	@echo "  release  - Build optimized release version"
 	@echo "  help     - Show this help message"
+
+test_recv:
+	./trans -m from -p 8080 -s cat
+
+test_send:
+	ruby bin.rb | ./trans -m to -p 8080 | tee hoge.txt
+
+test_check:
+	cat hoge.txt | od -t x1 -A n| ruby -l -0777 -ne '$$_.split.each_slice(7).each{|x|puts x.join(" ")}' | less

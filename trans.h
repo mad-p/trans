@@ -21,8 +21,8 @@ typedef enum {
 } encode_method_t;
 
 typedef enum {
-    MODE_SENDER,
-    MODE_RECEIVER
+    MODE_RECEIVER,
+    MODE_SENDER
 } trans_mode_t;
 
 typedef struct {

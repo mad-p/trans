@@ -9,11 +9,11 @@ void cleanup_and_exit(int sig) {
 }
 
 void print_usage(const char *program_name) {
-    fprintf(stderr, "Usage: %s -m <send|recv> -p <port> [-h <host>] [-e <uuencode|escape>] [-s <command>]\n", program_name);
+    fprintf(stderr, "Usage: %s -m <send|recv|to|from> -p <port> [-h <host>] [-e <uuencode|escape>] [-s <command>]\n", program_name);
     fprintf(stderr, "Options:\n");
-    fprintf(stderr, "  -m, --mode     Mode: send (sender) or recv (receiver)\n");
+    fprintf(stderr, "  -m, --mode     Mode: send/to (connector) or recv/from (listener)\n");
     fprintf(stderr, "  -p, --port     TCP port number\n");
-    fprintf(stderr, "  -h, --host     Host (for receiver mode, default: localhost)\n");
+    fprintf(stderr, "  -h, --host     Host (for sender mode, default: 127.0.0.1)\n");
     fprintf(stderr, "  -e, --encode   Encoding method: uuencode or escape (default: escape)\n");
     fprintf(stderr, "  -s, --system   Connect to command instead of stdio\n");
     fprintf(stderr, "  --help         Show this help message\n");
@@ -33,7 +33,7 @@ void parse_arguments(int argc, char *argv[], config_t *config) {
     config->mode = (trans_mode_t)-1;
     config->port = -1;
     config->method = METHOD_ESCAPE;
-    config->host = "localhost";
+    config->host = "127.0.0.1";
     config->system_command = NULL;
 
     int c;
@@ -42,9 +42,9 @@ void parse_arguments(int argc, char *argv[], config_t *config) {
     while ((c = getopt_long(argc, argv, "m:p:h:e:s:", long_options, &option_index)) != -1) {
         switch (c) {
             case 'm':
-                if (strcmp(optarg, "send") == 0) {
+                if (strcmp(optarg, "send") == 0 || strcmp(optarg, "to") == 0) {
                     config->mode = MODE_SENDER;
-                } else if (strcmp(optarg, "recv") == 0) {
+                } else if (strcmp(optarg, "recv") == 0 || strcmp(optarg, "from") == 0) {
                     config->mode = MODE_RECEIVER;
                 } else {
                     fprintf(stderr, "Error: Invalid mode '%s'\n", optarg);

@@ -180,7 +180,7 @@ void handle_connection(int sockfd, const config_t *config) {
 
                 exit(0);
             } else if (pid2 > 0) {
-                // 親プロセス: 両方の子プロセスの終了を待つ
+                // 親プロセス: 子プロセスの適切な終了処理
                 int status;
                 waitpid(pid1, &status, 0);
                 waitpid(pid2, &status, 0);
@@ -198,6 +198,46 @@ void handle_connection(int sockfd, const config_t *config) {
 }
 
 int sender_mode(const config_t *config) {
+    int client_sock;
+    struct sockaddr_in server_addr;
+    
+    // ソケット作成
+    client_sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (client_sock < 0) {
+        perror("socket");
+        return 1;
+    }
+    
+    // サーバーアドレス設定
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(config->port);
+    
+    if (inet_pton(AF_INET, config->host, &server_addr.sin_addr) <= 0) {
+        fprintf(stderr, "Invalid address: %s\n", config->host);
+        close(client_sock);
+        return 1;
+    }
+    
+    // 接続
+    fprintf(stderr, "Connecting to %s:%d...\n", config->host, config->port);
+    if (connect(client_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        perror("connect");
+        close(client_sock);
+        return 1;
+    }
+    
+    fprintf(stderr, "Connected to server\n");
+    
+    // 接続処理
+    handle_connection(client_sock, config);
+    
+    close(client_sock);
+    fprintf(stderr, "Disconnected from server\n");
+    return 0;
+}
+
+int receiver_mode(const config_t *config) {
     int server_sock, client_sock;
     struct sockaddr_in server_addr, client_addr;
     socklen_t client_len = sizeof(client_addr);
@@ -261,45 +301,5 @@ int sender_mode(const config_t *config) {
     }
     
     close(server_sock);
-    return 0;
-}
-
-int receiver_mode(const config_t *config) {
-    int client_sock;
-    struct sockaddr_in server_addr;
-    
-    // ソケット作成
-    client_sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (client_sock < 0) {
-        perror("socket");
-        return 1;
-    }
-    
-    // サーバーアドレス設定
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(config->port);
-    
-    if (inet_pton(AF_INET, config->host, &server_addr.sin_addr) <= 0) {
-        fprintf(stderr, "Invalid address: %s\n", config->host);
-        close(client_sock);
-        return 1;
-    }
-    
-    // 接続
-    fprintf(stderr, "Connecting to %s:%d...\n", config->host, config->port);
-    if (connect(client_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-        perror("connect");
-        close(client_sock);
-        return 1;
-    }
-    
-    fprintf(stderr, "Connected to server\n");
-    
-    // 接続処理
-    handle_connection(client_sock, config);
-    
-    close(client_sock);
-    fprintf(stderr, "Disconnected from server\n");
     return 0;
 }
