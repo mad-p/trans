@@ -12,7 +12,7 @@
 #include <getopt.h>
 #include <signal.h>
 
-#define BUFFER_SIZE 4096
+#define BUFFER_SIZE 256
 #define MAX_ENCODED_SIZE (BUFFER_SIZE * 4)
 
 typedef enum {
