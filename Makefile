@@ -6,6 +6,7 @@ SOURCES = main.c encode.c network.c
 TEST_SOURCES = test_encode.c encode.c
 OBJECTS = $(SOURCES:.c=.o)
 TEST_OBJECTS = $(TEST_SOURCES:.c=.o)
+TEST_PORT = 8081
 
 .PHONY: all clean test install
 
@@ -49,10 +50,10 @@ help:
 	@echo "  help     - Show this help message"
 
 test_recv:
-	./trans -m from -p 8080 -s cat
+	./trans -m from -p $(TEST_PORT) --lsp log_recv_std_port.log --lps log_recv_port_std.log -s cat
 
 test_send:
-	ruby bin.rb | ./trans -m to -p 8080 | tee hoge.txt
+	ruby bin.rb | ./trans -m to -p $(TEST_PORT) --lsp log_send_std_port.log --lps log_send_port_std.log  | tee hoge.txt
 
 test_check:
 	cat hoge.txt | od -t x1 -A n| ruby -l -0777 -ne '$$_.split.each_slice(7).each{|x|puts x.join(" ")}' | less

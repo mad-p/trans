@@ -8,16 +8,32 @@ void cleanup_and_exit(int sig) {
     exit(0);
 }
 
+void hex_dump_to_file(FILE *file, const char *prefix, const unsigned char *data, size_t len) {
+    if (!file || !data || len == 0) return;
+    
+    fprintf(file, "%s", prefix);
+    for (size_t i = 0; i < len; i++) {
+        fprintf(file, "%02x", data[i]);
+        if (i < len - 1) {
+            fprintf(file, " ");
+        }
+    }
+    fprintf(file, "\n");
+    fflush(file);
+}
+
 void print_usage(const char *program_name) {
-    fprintf(stderr, "Usage: %s -m <send|recv|to|from> -p <port> [-h <host>] [-e <uuencode|escape>] [-s <command>] [-q]\n", program_name);
+    fprintf(stderr, "Usage: %s -m <send|recv|to|from> -p <port> [-h <host>] [-e <uuencode|escape>] [-s <command>] [-q] [--lps <file>] [--lsp <file>]\n", program_name);
     fprintf(stderr, "Options:\n");
-    fprintf(stderr, "  -m, --mode     Mode: send/to (connector) or recv/from (listener)\n");
-    fprintf(stderr, "  -p, --port     TCP port number\n");
-    fprintf(stderr, "  -h, --host     Host (for sender mode, default: 127.0.0.1)\n");
-    fprintf(stderr, "  -e, --encode   Encoding method: uuencode or escape (default: escape)\n");
-    fprintf(stderr, "  -s, --system   Connect to command instead of stdio\n");
-    fprintf(stderr, "  -q, --quiet    Suppress stderr output\n");
-    fprintf(stderr, "  --help         Show this help message\n");
+    fprintf(stderr, "  -m, --mode             Mode: send/to (connector) or recv/from (listener)\n");
+    fprintf(stderr, "  -p, --port             TCP port number\n");
+    fprintf(stderr, "  -h, --host             Host (for sender mode, default: 127.0.0.1)\n");
+    fprintf(stderr, "  -e, --encode           Encoding method: uuencode or escape (default: escape)\n");
+    fprintf(stderr, "  -s, --system           Connect to command instead of stdio\n");
+    fprintf(stderr, "  -q, --quiet            Suppress stderr output\n");
+    fprintf(stderr, "      --lps, --log-port-stdio  Log port->stdio/command traffic (hex dump)\n");
+    fprintf(stderr, "      --lsp, --log-stdio-port  Log stdio/command->port traffic (hex dump)\n");
+    fprintf(stderr, "      --help             Show this help message\n");
 }
 
 void parse_arguments(int argc, char *argv[], config_t *config) {
@@ -28,6 +44,10 @@ void parse_arguments(int argc, char *argv[], config_t *config) {
         {"encode", required_argument, 0, 'e'},
         {"system", required_argument, 0, 's'},
         {"quiet", no_argument, 0, 'q'},
+        {"log-port-stdio", required_argument, 0, 1000},
+        {"lps", required_argument, 0, 1000},
+        {"log-stdio-port", required_argument, 0, 1001},
+        {"lsp", required_argument, 0, 1001},
         {"help", no_argument, 0, 0},
         {0, 0, 0, 0}
     };
@@ -38,6 +58,8 @@ void parse_arguments(int argc, char *argv[], config_t *config) {
     config->host = "127.0.0.1";
     config->system_command = NULL;
     config->quiet = 0;
+    config->log_port_stdio_file = NULL;
+    config->log_stdio_port_file = NULL;
 
     int c;
     int option_index = 0;
@@ -79,6 +101,12 @@ void parse_arguments(int argc, char *argv[], config_t *config) {
                 break;
             case 'q':
                 config->quiet = 1;
+                break;
+            case 1000:
+                config->log_port_stdio_file = optarg;
+                break;
+            case 1001:
+                config->log_stdio_port_file = optarg;
                 break;
             case 0:
                 if (strcmp(long_options[option_index].name, "help") == 0) {

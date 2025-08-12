@@ -32,6 +32,8 @@ typedef struct {
     char *host;
     char *system_command;
     int quiet;
+    char *log_port_stdio_file;
+    char *log_stdio_port_file;
 } config_t;
 
 // エンコード/デコード関数
@@ -52,5 +54,6 @@ extern volatile int running;
 void parse_arguments(int argc, char *argv[], config_t *config);
 void print_usage(const char *program_name);
 void cleanup_and_exit(int sig);
+void hex_dump_to_file(FILE *file, const char *prefix, const unsigned char *data, size_t len);
 
 #endif

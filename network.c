@@ -49,12 +49,25 @@ void handle_connection(int sockfd, const config_t *config) {
             unsigned char buffer[BUFFER_SIZE];
             char encoded_buffer[MAX_ENCODED_SIZE];
             ssize_t bytes_read, bytes_encoded, bytes_sent;
+            FILE *log_file = NULL;
+
+            if (config->log_stdio_port_file) {
+                log_file = fopen(config->log_stdio_port_file, "a");
+            }
 
             while ((bytes_read = read(from_cmd_fd, buffer, BUFFER_SIZE)) > 0) {
+                if (log_file) {
+                    hex_dump_to_file(log_file, "toenc:", buffer, bytes_read);
+                }
+
                 if (config->method == METHOD_UUENCODE) {
                     bytes_encoded = uuencode_data(buffer, bytes_read, encoded_buffer);
                 } else {
                     bytes_encoded = escape_encode_data(buffer, bytes_read, encoded_buffer);
+                }
+
+                if (log_file) {
+                    hex_dump_to_file(log_file, "enc-d:", (unsigned char*)encoded_buffer, bytes_encoded);
                 }
 
                 bytes_sent = 0;
@@ -67,6 +80,13 @@ void handle_connection(int sockfd, const config_t *config) {
                     bytes_sent += sent;
                 }
             }
+            
+            if (log_file) {
+                fprintf(log_file, "EOF detected from command stdout\n");
+                fflush(log_file);
+                fclose(log_file);
+            }
+            
             close(from_cmd_fd);
             shutdown(sockfd, SHUT_WR);
             exit(0);
@@ -78,14 +98,27 @@ void handle_connection(int sockfd, const config_t *config) {
             char encoded_buffer[MAX_ENCODED_SIZE];
             unsigned char decoded_buffer[BUFFER_SIZE];
             ssize_t bytes_received, bytes_decoded, bytes_written;
+            FILE *log_file = NULL;
+
+            if (config->log_port_stdio_file) {
+                log_file = fopen(config->log_port_stdio_file, "a");
+            }
 
             while ((bytes_received = read(sockfd, encoded_buffer, MAX_ENCODED_SIZE - 1)) > 0) {
                 encoded_buffer[bytes_received] = '\0';
+
+                if (log_file) {
+                    hex_dump_to_file(log_file, "todec:", (unsigned char*)encoded_buffer, bytes_received);
+                }
 
                 if (config->method == METHOD_UUENCODE) {
                     bytes_decoded = uudecode_data(encoded_buffer, bytes_received, decoded_buffer);
                 } else {
                     bytes_decoded = escape_decode_data(encoded_buffer, bytes_received, decoded_buffer);
+                }
+
+                if (log_file) {
+                    hex_dump_to_file(log_file, "dec-d:", decoded_buffer, bytes_decoded);
                 }
 
                 bytes_written = 0;
@@ -98,6 +131,13 @@ void handle_connection(int sockfd, const config_t *config) {
                     bytes_written += written;
                 }
             }
+            
+            if (log_file) {
+                fprintf(log_file, "EOF detected from socket\n");
+                fflush(log_file);
+                fclose(log_file);
+            }
+            
             close(to_cmd_fd);
             exit(0);
         }
@@ -131,12 +171,25 @@ void handle_connection(int sockfd, const config_t *config) {
         if (pid1 == 0) {
             // 子プロセス1: 標準入力 -> エンコード -> ソケット
             ssize_t bytes_read, bytes_encoded, bytes_sent;
+            FILE *log_file = NULL;
+
+            if (config->log_stdio_port_file) {
+                log_file = fopen(config->log_stdio_port_file, "a");
+            }
 
             while ((bytes_read = read(STDIN_FILENO, buffer, BUFFER_SIZE)) > 0) {
+                if (log_file) {
+                    hex_dump_to_file(log_file, "toenc:", buffer, bytes_read);
+                }
+
                 if (config->method == METHOD_UUENCODE) {
                     bytes_encoded = uuencode_data(buffer, bytes_read, encoded_buffer);
                 } else {
                     bytes_encoded = escape_encode_data(buffer, bytes_read, encoded_buffer);
+                }
+
+                if (log_file) {
+                    hex_dump_to_file(log_file, "enc-d:", (unsigned char*)encoded_buffer, bytes_encoded);
                 }
 
                 bytes_sent = 0;
@@ -150,6 +203,12 @@ void handle_connection(int sockfd, const config_t *config) {
                 }
             }
 
+            if (log_file) {
+                fprintf(log_file, "EOF detected from stdin\n");
+                fflush(log_file);
+                fclose(log_file);
+            }
+
             shutdown(sockfd, SHUT_WR);
             exit(0);
         } else if (pid1 > 0) {
@@ -157,14 +216,27 @@ void handle_connection(int sockfd, const config_t *config) {
             if (pid2 == 0) {
                 // 子プロセス2: ソケット -> デコード -> 標準出力
                 ssize_t bytes_received, bytes_decoded, bytes_written;
+                FILE *log_file = NULL;
+
+                if (config->log_port_stdio_file) {
+                    log_file = fopen(config->log_port_stdio_file, "a");
+                }
 
                 while ((bytes_received = read(sockfd, encoded_buffer, MAX_ENCODED_SIZE - 1)) > 0) {
                     encoded_buffer[bytes_received] = '\0';
+
+                    if (log_file) {
+                        hex_dump_to_file(log_file, "todec:", (unsigned char*)encoded_buffer, bytes_received);
+                    }
 
                     if (config->method == METHOD_UUENCODE) {
                         bytes_decoded = uudecode_data(encoded_buffer, bytes_received, decoded_buffer);
                     } else {
                         bytes_decoded = escape_decode_data(encoded_buffer, bytes_received, decoded_buffer);
+                    }
+
+                    if (log_file) {
+                        hex_dump_to_file(log_file, "dec-d:", decoded_buffer, bytes_decoded);
                     }
 
                     bytes_written = 0;
@@ -176,6 +248,12 @@ void handle_connection(int sockfd, const config_t *config) {
                         }
                         bytes_written += written;
                     }
+                }
+
+                if (log_file) {
+                    fprintf(log_file, "EOF detected from socket\n");
+                    fflush(log_file);
+                    fclose(log_file);
                 }
 
                 exit(0);
