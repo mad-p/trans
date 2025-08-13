@@ -60,3 +60,5 @@
 - オプションに以下のエイリアスを追加してください
     - `--ll` :  `--log-prefix l --lps log_lps.log --lsp log_lsp.log` と同じ意味
     - `--lr` :  `--log-prefix r --lps log_rps.log --lsp log_rsp.log` と同じ意味
+
+process_data_streamからデコード前のバッファ内容をhex_dump_to_fileにダンプするとき、remaining_bytesの分が考りょされていません。デコードが完了してから出力し、remaining_bytesの分は出力しないようにしてください。残した分は次回のループで出力されるはずです

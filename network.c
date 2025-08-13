@@ -66,11 +66,10 @@ void process_data_stream(int input_fd, int output_fd, process_mode_t mode,
             break;
         } else if (bytes_read == 0) {
             if (buffer_pos > 0) {
-                if (log_file) {
-                    hex_dump_to_file(log_file, log_prefix, input_buffer, buffer_pos, config);
-                }
-
                 if (mode == ENCODE_MODE) {
+                    if (log_file) {
+                        hex_dump_to_file(log_file, log_prefix, input_buffer, buffer_pos, config);
+                    }
                     if (config->method == METHOD_UUENCODE) {
                         bytes_processed = uuencode_data(input_buffer, buffer_pos, output_buffer);
                     } else {
@@ -81,6 +80,9 @@ void process_data_stream(int input_fd, int output_fd, process_mode_t mode,
                         bytes_processed = uudecode_data(input_buffer, buffer_pos, output_buffer, &remaining_bytes);
                     } else {
                         bytes_processed = escape_decode_data(input_buffer, buffer_pos, output_buffer, &remaining_bytes);
+                    }
+                    if (log_file) {
+                        hex_dump_to_file(log_file, log_prefix, input_buffer, buffer_pos - remaining_bytes, config);
                     }
                 }
 
@@ -112,11 +114,10 @@ void process_data_stream(int input_fd, int output_fd, process_mode_t mode,
             buffer_pos += bytes_read;
             
             if (buffer_pos >= BUFFER_SIZE) {
-                if (log_file) {
-                    hex_dump_to_file(log_file, log_prefix, input_buffer, buffer_pos, config);
-                }
-
                 if (mode == ENCODE_MODE) {
+                    if (log_file) {
+                        hex_dump_to_file(log_file, log_prefix, input_buffer, buffer_pos, config);
+                    }
                     if (config->method == METHOD_UUENCODE) {
                         bytes_processed = uuencode_data(input_buffer, buffer_pos, output_buffer);
                     } else {
@@ -127,6 +128,9 @@ void process_data_stream(int input_fd, int output_fd, process_mode_t mode,
                         bytes_processed = uudecode_data(input_buffer, buffer_pos, output_buffer, &remaining_bytes);
                     } else {
                         bytes_processed = escape_decode_data(input_buffer, buffer_pos, output_buffer, &remaining_bytes);
+                    }
+                    if (log_file) {
+                        hex_dump_to_file(log_file, log_prefix, input_buffer, buffer_pos - remaining_bytes, config);
                     }
                 }
 
