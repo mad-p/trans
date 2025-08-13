@@ -3,3 +3,4 @@
 *.log
 /trans
 /logs
+/test_encode

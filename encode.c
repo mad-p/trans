@@ -35,8 +35,9 @@ size_t uuencode_data(const unsigned char *input, size_t input_len, unsigned char
     return j;
 }
 
-size_t uudecode_data(const unsigned char *input, size_t input_len, unsigned char *output) {
+size_t uudecode_data(const unsigned char *input, size_t input_len, unsigned char *output, size_t *remaining_bytes) {
     size_t i = 0, j = 0;
+    *remaining_bytes = 0;
     
     while (i < input_len) {
         if (input[i] == '\n') {
@@ -46,11 +47,20 @@ size_t uudecode_data(const unsigned char *input, size_t input_len, unsigned char
         
         if (i >= input_len) break;
         
+        // 行の開始位置を記録
+        size_t line_start = i;
+        
+        // 行長バイトがあることを確認
+        if (i >= input_len) {
+            *remaining_bytes = input_len - line_start;
+            break;
+        }
+        
         int line_len = input[i] - ' ';
         i++;
         
         if (line_len < 0 || line_len > 45) {
-            // 行をスキップ
+            // 不正な行長 - 行の終わりまでスキップ
             while (i < input_len && input[i] != '\n') {
                 i++;
             }
@@ -58,7 +68,14 @@ size_t uudecode_data(const unsigned char *input, size_t input_len, unsigned char
         }
         
         int decoded = 0;
-        while (decoded < line_len && i + 3 < input_len) {
+        while (decoded < line_len) {
+            // 4バイト組が完全に利用可能かチェック
+            if (i + 3 >= input_len) {
+                // 不完全な4バイト組 - 行全体を残りデータとして扱う
+                *remaining_bytes = input_len - line_start;
+                goto done;
+            }
+            
             unsigned char c1 = input[i] - ' ';
             unsigned char c2 = input[i + 1] - ' ';
             unsigned char c3 = input[i + 2] - ' ';
@@ -86,6 +103,7 @@ size_t uudecode_data(const unsigned char *input, size_t input_len, unsigned char
         }
     }
     
+done:
     return j;
 }
 
@@ -108,23 +126,32 @@ size_t escape_encode_data(const unsigned char *input, size_t input_len, unsigned
     return j;
 }
 
-size_t escape_decode_data(const unsigned char *input, size_t input_len, unsigned char *output) {
+size_t escape_decode_data(const unsigned char *input, size_t input_len, unsigned char *output, size_t *remaining_bytes) {
     size_t i = 0, j = 0;
+    *remaining_bytes = 0;
     
     while (i < input_len) {
-        if (input[i] == 0x5c && i + 2 < input_len) {
-            char hex_str[3];
-            hex_str[0] = input[i + 1];
-            hex_str[1] = input[i + 2];
-            hex_str[2] = '\0';
-            
-            if (isxdigit(hex_str[0]) && isxdigit(hex_str[1])) {
-                unsigned int byte_val;
-                sscanf(hex_str, "%02x", &byte_val);
-                output[j++] = (unsigned char)byte_val;
-                i += 3;
+        if (input[i] == 0x5c) {
+            // エスケープシーケンスの開始
+            if (i + 2 < input_len) {
+                // 完全な\xxシーケンスが利用可能
+                char hex_str[3];
+                hex_str[0] = input[i + 1];
+                hex_str[1] = input[i + 2];
+                hex_str[2] = '\0';
+                
+                if (isxdigit(hex_str[0]) && isxdigit(hex_str[1])) {
+                    unsigned int byte_val;
+                    sscanf(hex_str, "%02x", &byte_val);
+                    output[j++] = (unsigned char)byte_val;
+                    i += 3;
+                } else {
+                    output[j++] = input[i++];
+                }
             } else {
-                output[j++] = input[i++];
+                // バッファの末尾で不完全なエスケープシーケンス
+                *remaining_bytes = input_len - i;
+                break;
             }
         } else {
             output[j++] = input[i++];

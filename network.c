@@ -36,6 +36,7 @@ void process_data_stream(int input_fd, int output_fd, process_mode_t mode,
     unsigned char output_buffer[MAX_ENCODED_SIZE];
     size_t buffer_pos = 0;
     ssize_t bytes_read, bytes_processed, bytes_written;
+    size_t remaining_bytes = 0;
     
     while (1) {
         bytes_read = read_with_timeout(input_fd, input_buffer + buffer_pos, 
@@ -57,9 +58,9 @@ void process_data_stream(int input_fd, int output_fd, process_mode_t mode,
                     }
                 } else {
                     if (config->method == METHOD_UUENCODE) {
-                        bytes_processed = uudecode_data(input_buffer, buffer_pos, output_buffer);
+                        bytes_processed = uudecode_data(input_buffer, buffer_pos, output_buffer, &remaining_bytes);
                     } else {
-                        bytes_processed = escape_decode_data(input_buffer, buffer_pos, output_buffer);
+                        bytes_processed = escape_decode_data(input_buffer, buffer_pos, output_buffer, &remaining_bytes);
                     }
                 }
 
@@ -77,7 +78,14 @@ void process_data_stream(int input_fd, int output_fd, process_mode_t mode,
                     }
                     bytes_written += written;
                 }
-                buffer_pos = 0;
+                
+                // 残りバイトがある場合、バッファの先頭に移動
+                if (remaining_bytes > 0) {
+                    memmove(input_buffer, input_buffer + buffer_pos - remaining_bytes, remaining_bytes);
+                    buffer_pos = remaining_bytes;
+                } else {
+                    buffer_pos = 0;
+                }
             }
             continue;
         } else {
@@ -96,9 +104,9 @@ void process_data_stream(int input_fd, int output_fd, process_mode_t mode,
                     }
                 } else {
                     if (config->method == METHOD_UUENCODE) {
-                        bytes_processed = uudecode_data(input_buffer, buffer_pos, output_buffer);
+                        bytes_processed = uudecode_data(input_buffer, buffer_pos, output_buffer, &remaining_bytes);
                     } else {
-                        bytes_processed = escape_decode_data(input_buffer, buffer_pos, output_buffer);
+                        bytes_processed = escape_decode_data(input_buffer, buffer_pos, output_buffer, &remaining_bytes);
                     }
                 }
 
@@ -116,7 +124,14 @@ void process_data_stream(int input_fd, int output_fd, process_mode_t mode,
                     }
                     bytes_written += written;
                 }
-                buffer_pos = 0;
+                
+                // 残りバイトがある場合、バッファの先頭に移動
+                if (remaining_bytes > 0) {
+                    memmove(input_buffer, input_buffer + buffer_pos - remaining_bytes, remaining_bytes);
+                    buffer_pos = remaining_bytes;
+                } else {
+                    buffer_pos = 0;
+                }
             }
         }
     }
