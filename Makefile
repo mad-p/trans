@@ -51,10 +51,10 @@ help:
 	@echo "  help     - Show this help message"
 
 test_connect:
-	./trans -m from -p $(TEST_READ_PORT) --lps log_rps.log --lsp log_rsp.log -s "./trans -q -m to --lps log_sps.log --lsp log_ssp.log -p $(TEST_WRITE_PORT)"
+	./trans -m from -p $(TEST_READ_PORT) --ll -s "./trans -q -m to --lr -p $(TEST_WRITE_PORT)"
 
 test_pty_connect:
-	./trans -m from -p $(TEST_READ_PORT) --lps log_rps.log --lsp log_rsp.log -s "ssh -tt -e none localhost 'stty raw -icanon -echo; $(PWD)/trans -q -m to --lps $(PWD)/log_sps.log --lsp $(PWD)/log_ssp.log -p $(TEST_WRITE_PORT)'"
+	./trans -m from -p $(TEST_READ_PORT) --ll -s "ssh -tt -e none localhost 'stty raw -icanon -echo; $(PWD)/trans -q -m to --lr -p $(TEST_WRITE_PORT)'"
 
 test_send:
 	(ruby bin.rb | nc localhost $(TEST_READ_PORT)) & (nc -l $(TEST_WRITE_PORT) | tee hoge.txt)
