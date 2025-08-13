@@ -56,3 +56,7 @@
 
 
 - selectで入力をタイムアウトつきで待っている部分を、pollとO_NONBLOCKによる方法に書きかえてください
+
+- オプションに以下のエイリアスを追加してください
+    - `--ll` :  `--log-prefix l --lps log_lps.log --lsp log_lsp.log` と同じ意味
+    - `--lr` :  `--log-prefix r --lps log_rps.log --lsp log_rsp.log` と同じ意味

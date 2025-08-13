@@ -48,6 +48,8 @@ void print_usage(const char *program_name) {
     fprintf(stderr, "      --lps, --log-port-stdio  Log port->stdio/command traffic (hex dump)\n");
     fprintf(stderr, "      --lsp, --log-stdio-port  Log stdio/command->port traffic (hex dump)\n");
     fprintf(stderr, "      --log-prefix       Custom prefix for log entries (default: none)\n");
+    fprintf(stderr, "      --ll               Alias for --log-prefix l --lps log_lps.log --lsp log_lsp.log\n");
+    fprintf(stderr, "      --lr               Alias for --log-prefix r --lps log_rps.log --lsp log_rsp.log\n");
     fprintf(stderr, "      --version          Show version information\n");
     fprintf(stderr, "      --help             Show this help message\n");
 }
@@ -65,6 +67,8 @@ void parse_arguments(int argc, char *argv[], config_t *config) {
         {"log-stdio-port", required_argument, 0, 1001},
         {"lsp", required_argument, 0, 1001},
         {"log-prefix", required_argument, 0, 1002},
+        {"ll", no_argument, 0, 1004},
+        {"lr", no_argument, 0, 1005},
         {"version", no_argument, 0, 1003},
         {"help", no_argument, 0, 0},
         {0, 0, 0, 0}
@@ -129,6 +133,16 @@ void parse_arguments(int argc, char *argv[], config_t *config) {
                 break;
             case 1002:
                 config->log_prefix = optarg;
+                break;
+            case 1004: // --ll
+                config->log_prefix = "l";
+                config->log_port_stdio_file = "log_lps.log";
+                config->log_stdio_port_file = "log_lsp.log";
+                break;
+            case 1005: // --lr
+                config->log_prefix = "r";
+                config->log_port_stdio_file = "log_rps.log";
+                config->log_stdio_port_file = "log_rsp.log";
                 break;
             case 1003:
                 printf("trans version %s\n", TRANS_VERSION);
