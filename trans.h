@@ -51,6 +51,7 @@ int sender_mode(const config_t *config);
 int receiver_mode(const config_t *config);
 void handle_connection(int sockfd, const config_t *config);
 ssize_t read_with_timeout(int fd, void *buffer, size_t count, int timeout_ms);
+void handle_connection_common(int sockfd, int input_fd, int output_fd, const config_t *config);
 
 // グローバル変数
 extern volatile int running;

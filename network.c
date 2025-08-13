@@ -24,6 +24,160 @@ ssize_t read_with_timeout(int fd, void *buffer, size_t count, int timeout_ms) {
     return -1;
 }
 
+typedef enum {
+    ENCODE_MODE,
+    DECODE_MODE
+} process_mode_t;
+
+void process_data_stream(int input_fd, int output_fd, process_mode_t mode, 
+                        const config_t *config, FILE *log_file, const char *log_prefix,
+                        const char *eof_message) {
+    unsigned char input_buffer[BUFFER_SIZE];
+    unsigned char output_buffer[MAX_ENCODED_SIZE];
+    size_t buffer_pos = 0;
+    ssize_t bytes_read, bytes_processed, bytes_written;
+    
+    while (1) {
+        bytes_read = read_with_timeout(input_fd, input_buffer + buffer_pos, 
+                                     BUFFER_SIZE - buffer_pos, 200);
+        
+        if (bytes_read < 0) {
+            break;
+        } else if (bytes_read == 0) {
+            if (buffer_pos > 0) {
+                if (log_file) {
+                    hex_dump_to_file(log_file, log_prefix, input_buffer, buffer_pos);
+                }
+
+                if (mode == ENCODE_MODE) {
+                    if (config->method == METHOD_UUENCODE) {
+                        bytes_processed = uuencode_data(input_buffer, buffer_pos, output_buffer);
+                    } else {
+                        bytes_processed = escape_encode_data(input_buffer, buffer_pos, output_buffer);
+                    }
+                } else {
+                    if (config->method == METHOD_UUENCODE) {
+                        bytes_processed = uudecode_data(input_buffer, buffer_pos, output_buffer);
+                    } else {
+                        bytes_processed = escape_decode_data(input_buffer, buffer_pos, output_buffer);
+                    }
+                }
+
+                if (log_file) {
+                    const char *proc_prefix = (mode == ENCODE_MODE) ? "enc-d:" : "dec-d:";
+                    hex_dump_to_file(log_file, proc_prefix, output_buffer, bytes_processed);
+                }
+
+                bytes_written = 0;
+                while (bytes_written < bytes_processed) {
+                    ssize_t written = write(output_fd, output_buffer + bytes_written,
+                                          bytes_processed - bytes_written);
+                    if (written <= 0) {
+                        exit(1);
+                    }
+                    bytes_written += written;
+                }
+                buffer_pos = 0;
+            }
+            continue;
+        } else {
+            buffer_pos += bytes_read;
+            
+            if (buffer_pos >= BUFFER_SIZE) {
+                if (log_file) {
+                    hex_dump_to_file(log_file, log_prefix, input_buffer, buffer_pos);
+                }
+
+                if (mode == ENCODE_MODE) {
+                    if (config->method == METHOD_UUENCODE) {
+                        bytes_processed = uuencode_data(input_buffer, buffer_pos, output_buffer);
+                    } else {
+                        bytes_processed = escape_encode_data(input_buffer, buffer_pos, output_buffer);
+                    }
+                } else {
+                    if (config->method == METHOD_UUENCODE) {
+                        bytes_processed = uudecode_data(input_buffer, buffer_pos, output_buffer);
+                    } else {
+                        bytes_processed = escape_decode_data(input_buffer, buffer_pos, output_buffer);
+                    }
+                }
+
+                if (log_file) {
+                    const char *proc_prefix = (mode == ENCODE_MODE) ? "enc-d:" : "dec-d:";
+                    hex_dump_to_file(log_file, proc_prefix, output_buffer, bytes_processed);
+                }
+
+                bytes_written = 0;
+                while (bytes_written < bytes_processed) {
+                    ssize_t written = write(output_fd, output_buffer + bytes_written,
+                                          bytes_processed - bytes_written);
+                    if (written <= 0) {
+                        exit(1);
+                    }
+                    bytes_written += written;
+                }
+                buffer_pos = 0;
+            }
+        }
+    }
+    
+    if (log_file) {
+        struct timeval tv;
+        struct tm *tm_info;
+        gettimeofday(&tv, NULL);
+        tm_info = localtime(&tv.tv_sec);
+
+        fprintf(log_file, "%02d:%02d:%02d.%06d %s", 
+                tm_info->tm_hour, tm_info->tm_min, tm_info->tm_sec, (int)tv.tv_usec,
+                eof_message);
+        fflush(log_file);
+        fclose(log_file);
+    }
+}
+
+void handle_connection_common(int sockfd, int input_fd, int output_fd, const config_t *config) {
+    pid_t pid1, pid2;
+
+    pid1 = fork();
+    if (pid1 == 0) {
+        FILE *log_file = NULL;
+        if (config->log_stdio_port_file) {
+            log_file = fopen(config->log_stdio_port_file, "w");
+        }
+        
+        process_data_stream(input_fd, sockfd, DECODE_MODE, config, log_file, 
+                          "todec:", "from input: EOF detected");
+        
+        shutdown(sockfd, SHUT_WR);
+        exit(0);
+    } else if (pid1 > 0) {
+        pid2 = fork();
+        if (pid2 == 0) {
+            FILE *log_file = NULL;
+            if (config->log_port_stdio_file) {
+                log_file = fopen(config->log_port_stdio_file, "w");
+            }
+            
+            process_data_stream(sockfd, output_fd, ENCODE_MODE, config, log_file,
+                              "toenc:", "from socket: EOF detected");
+            
+            exit(0);
+        } else if (pid2 > 0) {
+            int status;
+            waitpid(pid1, &status, 0);
+            waitpid(pid2, &status, 0);
+        } else {
+            perror("fork");
+            kill(pid1, SIGTERM);
+            waitpid(pid1, NULL, 0);
+            exit(1);
+        }
+    } else {
+        perror("fork");
+        exit(1);
+    }
+}
+
 void handle_connection(int sockfd, const config_t *config) {
     if (config->system_command) {
         int to_child_pipe[2];
@@ -65,397 +219,20 @@ void handle_connection(int sockfd, const config_t *config) {
         int to_cmd_fd = to_child_pipe[1];
         int from_cmd_fd = from_child_pipe[0];
 
-        pid_t pid1, pid2;
-
-        pid1 = fork(); // Process 1: command stdout -> decode -> socket
-        if (pid1 == 0) {
-            close(to_cmd_fd);
-            unsigned char decoded_buffer[MAX_ENCODED_SIZE];
-            ssize_t bytes_read, bytes_decoded, bytes_sent;
-            FILE *log_file = NULL;
-
-            if (config->log_stdio_port_file) {
-                log_file = fopen(config->log_stdio_port_file, "w");
-            }
-
-            unsigned char cmd_buffer[BUFFER_SIZE];
-            size_t cmd_buffer_pos = 0;
-            
-            while (1) {
-                bytes_read = read_with_timeout(from_cmd_fd, cmd_buffer + cmd_buffer_pos, 
-                                             BUFFER_SIZE - cmd_buffer_pos, 200);
-                
-                if (bytes_read < 0) {
-                    break;
-                } else if (bytes_read == 0) {
-                    if (cmd_buffer_pos > 0) {
-                        if (log_file) {
-                            hex_dump_to_file(log_file, "todec:", cmd_buffer, cmd_buffer_pos);
-                        }
-
-                        if (config->method == METHOD_UUENCODE) {
-                            bytes_decoded = uudecode_data(cmd_buffer, cmd_buffer_pos, decoded_buffer);
-                        } else {
-                            bytes_decoded = escape_decode_data(cmd_buffer, cmd_buffer_pos, decoded_buffer);
-                        }
-
-                        if (log_file) {
-                            hex_dump_to_file(log_file, "dec-d:", decoded_buffer, bytes_decoded);
-                        }
-
-                        bytes_sent = 0;
-                        while (bytes_sent < bytes_decoded) {
-                            ssize_t sent = write(sockfd, decoded_buffer + bytes_sent, bytes_decoded - bytes_sent);
-                            if (sent <= 0) {
-                                exit(1);
-                            }
-                            bytes_sent += sent;
-                        }
-                        cmd_buffer_pos = 0;
-                    }
-                    continue;
-                } else {
-                    cmd_buffer_pos += bytes_read;
-                    
-                    if (cmd_buffer_pos >= BUFFER_SIZE) {
-                        if (log_file) {
-                            hex_dump_to_file(log_file, "todec:", cmd_buffer, cmd_buffer_pos);
-                        }
-
-                        if (config->method == METHOD_UUENCODE) {
-                            bytes_decoded = uudecode_data(cmd_buffer, cmd_buffer_pos, decoded_buffer);
-                        } else {
-                            bytes_decoded = escape_decode_data(cmd_buffer, cmd_buffer_pos, decoded_buffer);
-                        }
-
-                        if (log_file) {
-                            hex_dump_to_file(log_file, "dec-d:", decoded_buffer, bytes_decoded);
-                        }
-
-                        bytes_sent = 0;
-                        while (bytes_sent < bytes_decoded) {
-                            ssize_t sent = write(sockfd, decoded_buffer + bytes_sent, bytes_decoded - bytes_sent);
-                            if (sent <= 0) {
-                                exit(1);
-                            }
-                            bytes_sent += sent;
-                        }
-                        cmd_buffer_pos = 0;
-                    }
-                }
-            }
-            
-            if (log_file) {
-                fprintf(log_file, "EOF detected from command stdout\n");
-                fflush(log_file);
-                fclose(log_file);
-            }
-            
-            close(from_cmd_fd);
-            shutdown(sockfd, SHUT_WR);
-            exit(0);
-        }
-
-        pid2 = fork(); // Process 2: socket -> encode -> command stdin
-        if (pid2 == 0) {
-            close(from_cmd_fd);
-            unsigned char encoded_buffer[BUFFER_SIZE];
-            ssize_t bytes_received, bytes_encoded, bytes_written;
-            FILE *log_file = NULL;
-
-            if (config->log_port_stdio_file) {
-                log_file = fopen(config->log_port_stdio_file, "w");
-            }
-
-            unsigned char socket_buffer[BUFFER_SIZE];
-            size_t socket_buffer_pos = 0;
-            
-            while (1) {
-                bytes_received = read_with_timeout(sockfd, socket_buffer + socket_buffer_pos, 
-                                                 BUFFER_SIZE - socket_buffer_pos, 200);
-                
-                if (bytes_received < 0) {
-                    break;
-                } else if (bytes_received == 0) {
-                    if (socket_buffer_pos > 0) {
-                        if (log_file) {
-                            hex_dump_to_file(log_file, "toenc:", socket_buffer, socket_buffer_pos);
-                        }
-
-                        if (config->method == METHOD_UUENCODE) {
-                            bytes_encoded = uuencode_data(socket_buffer, socket_buffer_pos, encoded_buffer);
-                        } else {
-                            bytes_encoded = escape_encode_data(socket_buffer, socket_buffer_pos, encoded_buffer);
-                        }
-
-                        if (log_file) {
-                            hex_dump_to_file(log_file, "enc-d:", (unsigned char*)encoded_buffer, bytes_encoded);
-                        }
-
-                        bytes_written = 0;
-                        while (bytes_written < bytes_encoded) {
-                            ssize_t written = write(to_cmd_fd, encoded_buffer + bytes_written, bytes_encoded - bytes_written);
-                            if (written <= 0) {
-                                exit(1);
-                            }
-                            bytes_written += written;
-                        }
-                        socket_buffer_pos = 0;
-                    }
-                    continue;
-                } else {
-                    socket_buffer_pos += bytes_received;
-                    
-                    if (socket_buffer_pos >= BUFFER_SIZE) {
-                        if (log_file) {
-                            hex_dump_to_file(log_file, "toenc:", socket_buffer, socket_buffer_pos);
-                        }
-
-                        if (config->method == METHOD_UUENCODE) {
-                            bytes_encoded = uuencode_data(socket_buffer, socket_buffer_pos, encoded_buffer);
-                        } else {
-                            bytes_encoded = escape_encode_data(socket_buffer, socket_buffer_pos, encoded_buffer);
-                        }
-
-                        if (log_file) {
-                            hex_dump_to_file(log_file, "enc-d:", (unsigned char*)encoded_buffer, bytes_encoded);
-                        }
-
-                        bytes_written = 0;
-                        while (bytes_written < bytes_encoded) {
-                            ssize_t written = write(to_cmd_fd, encoded_buffer + bytes_written, bytes_encoded - bytes_written);
-                            if (written <= 0) {
-                                exit(1);
-                            }
-                            bytes_written += written;
-                        }
-                        socket_buffer_pos = 0;
-                    }
-                }
-            }
-            
-            if (log_file) {
-                fprintf(log_file, "EOF detected from socket\n");
-                fflush(log_file);
-                fclose(log_file);
-            }
-            
-            close(to_cmd_fd);
-            exit(0);
-        }
-
-        // Parent waits for all children
-        int status;
-        if (pid1 > 0) {
-            waitpid(pid1, &status, 0);
-        }
-        // Once the reading from the command is done, we can close the writing pipe to it.
+        handle_connection_common(sockfd, from_cmd_fd, to_cmd_fd, config);
+        
         close(to_cmd_fd);
-
-        if (pid2 > 0) {
-            waitpid(pid2, &status, 0);
-        }
+        close(from_cmd_fd);
         
         if (cmd_pid > 0) {
-             kill(cmd_pid, SIGTERM);
-             waitpid(cmd_pid, &status, 0);
+            int status;
+            kill(cmd_pid, SIGTERM);
+            waitpid(cmd_pid, &status, 0);
         }
-        close(from_cmd_fd);
 
     } else {
         // non-command mode
-        pid_t pid1, pid2;
-        unsigned char encoded_buffer[MAX_ENCODED_SIZE];
-        unsigned char decoded_buffer[BUFFER_SIZE];
-
-        pid1 = fork();
-        if (pid1 == 0) {
-            // 子プロセス1: 標準入力 -> デコード -> ソケット
-            ssize_t bytes_read, bytes_decoded, bytes_sent;
-            FILE *log_file = NULL;
-            unsigned char input_buffer[BUFFER_SIZE];
-            size_t buffer_pos = 0;
-
-            if (config->log_stdio_port_file) {
-                log_file = fopen(config->log_stdio_port_file, "w");
-            }
-
-            while (1) {
-                bytes_read = read_with_timeout(STDIN_FILENO, input_buffer + buffer_pos, 
-                                             BUFFER_SIZE - buffer_pos, 200);
-                
-                if (bytes_read < 0) {
-                    break;
-                } else if (bytes_read == 0) {
-                    if (buffer_pos > 0) {
-                        if (log_file) {
-                            hex_dump_to_file(log_file, "todec:", input_buffer, buffer_pos);
-                        }
-
-                        if (config->method == METHOD_UUENCODE) {
-                            bytes_decoded = uudecode_data(input_buffer, buffer_pos, decoded_buffer);
-                        } else {
-                            bytes_decoded = escape_decode_data(input_buffer, buffer_pos, decoded_buffer);
-                        }
-
-                        if (log_file) {
-                            hex_dump_to_file(log_file, "dec-d:", decoded_buffer, bytes_decoded);
-                        }
-
-                        bytes_sent = 0;
-                        while (bytes_sent < bytes_decoded) {
-                            ssize_t sent = write(sockfd, decoded_buffer + bytes_sent,
-                                               bytes_decoded - bytes_sent);
-                            if (sent <= 0) {
-                                exit(1);
-                            }
-                            bytes_sent += sent;
-                        }
-                        buffer_pos = 0;
-                    }
-                    continue;
-                } else {
-                    buffer_pos += bytes_read;
-                    
-                    if (buffer_pos >= BUFFER_SIZE) {
-                        if (log_file) {
-                            hex_dump_to_file(log_file, "todec:", input_buffer, buffer_pos);
-                        }
-
-                        if (config->method == METHOD_UUENCODE) {
-                            bytes_decoded = uudecode_data(input_buffer, buffer_pos, decoded_buffer);
-                        } else {
-                            bytes_decoded = escape_decode_data(input_buffer, buffer_pos, decoded_buffer);
-                        }
-
-                        if (log_file) {
-                            hex_dump_to_file(log_file, "dec-d:", decoded_buffer, bytes_decoded);
-                        }
-
-                        bytes_sent = 0;
-                        while (bytes_sent < bytes_decoded) {
-                            ssize_t sent = write(sockfd, decoded_buffer + bytes_sent,
-                                               bytes_decoded - bytes_sent);
-                            if (sent <= 0) {
-                                exit(1);
-                            }
-                            bytes_sent += sent;
-                        }
-                        buffer_pos = 0;
-                    }
-                }
-            }
-
-            if (log_file) {
-                fprintf(log_file, "EOF detected from stdin\n");
-                fflush(log_file);
-                fclose(log_file);
-            }
-
-            shutdown(sockfd, SHUT_WR);
-            exit(0);
-        } else if (pid1 > 0) {
-            pid2 = fork();
-            if (pid2 == 0) {
-                // 子プロセス2: ソケット -> エンコード -> 標準出力
-                ssize_t bytes_received, bytes_encoded, bytes_written;
-                FILE *log_file = NULL;
-
-                if (config->log_port_stdio_file) {
-                    log_file = fopen(config->log_port_stdio_file, "w");
-                }
-
-                unsigned char socket_out_buffer[BUFFER_SIZE];
-                size_t socket_out_buffer_pos = 0;
-                
-                while (1) {
-                    bytes_received = read_with_timeout(sockfd, socket_out_buffer + socket_out_buffer_pos, 
-                                                     BUFFER_SIZE - socket_out_buffer_pos, 200);
-                    
-                    if (bytes_received < 0) {
-                        break;
-                    } else if (bytes_received == 0) {
-                        if (socket_out_buffer_pos > 0) {
-                            if (log_file) {
-                                hex_dump_to_file(log_file, "toenc:", socket_out_buffer, socket_out_buffer_pos);
-                            }
-
-                            if (config->method == METHOD_UUENCODE) {
-                                bytes_encoded = uuencode_data(socket_out_buffer, socket_out_buffer_pos, encoded_buffer);
-                            } else {
-                                bytes_encoded = escape_encode_data(socket_out_buffer, socket_out_buffer_pos, encoded_buffer);
-                            }
-
-                            if (log_file) {
-                                hex_dump_to_file(log_file, "enc-d:", (unsigned char*)encoded_buffer, bytes_encoded);
-                            }
-
-                            bytes_written = 0;
-                            while (bytes_written < bytes_encoded) {
-                                ssize_t written = write(STDOUT_FILENO, encoded_buffer + bytes_written,
-                                                      bytes_encoded - bytes_written);
-                                if (written <= 0) {
-                                    exit(1);
-                                }
-                                bytes_written += written;
-                            }
-                            socket_out_buffer_pos = 0;
-                        }
-                        continue;
-                    } else {
-                        socket_out_buffer_pos += bytes_received;
-                        
-                        if (socket_out_buffer_pos >= BUFFER_SIZE) {
-                            if (log_file) {
-                                hex_dump_to_file(log_file, "toenc:", socket_out_buffer, socket_out_buffer_pos);
-                            }
-
-                            if (config->method == METHOD_UUENCODE) {
-                                bytes_encoded = uuencode_data(socket_out_buffer, socket_out_buffer_pos, encoded_buffer);
-                            } else {
-                                bytes_encoded = escape_encode_data(socket_out_buffer, socket_out_buffer_pos, encoded_buffer);
-                            }
-
-                            if (log_file) {
-                                hex_dump_to_file(log_file, "enc-d:", (unsigned char*)encoded_buffer, bytes_encoded);
-                            }
-
-                            bytes_written = 0;
-                            while (bytes_written < bytes_encoded) {
-                                ssize_t written = write(STDOUT_FILENO, encoded_buffer + bytes_written,
-                                                      bytes_encoded - bytes_written);
-                                if (written <= 0) {
-                                    exit(1);
-                                }
-                                bytes_written += written;
-                            }
-                            socket_out_buffer_pos = 0;
-                        }
-                    }
-                }
-
-                if (log_file) {
-                    fprintf(log_file, "EOF detected from socket\n");
-                    fflush(log_file);
-                    fclose(log_file);
-                }
-
-                exit(0);
-            } else if (pid2 > 0) {
-                // 親プロセス: 子プロセスの適切な終了処理
-                int status;
-                waitpid(pid1, &status, 0);
-                waitpid(pid2, &status, 0);
-            } else {
-                perror("fork");
-                kill(pid1, SIGTERM);
-                waitpid(pid1, NULL, 0);
-                exit(1);
-            }
-        } else {
-            perror("fork");
-            exit(1);
-        }
+        handle_connection_common(sockfd, STDIN_FILENO, STDOUT_FILENO, config);
     }
 }
 

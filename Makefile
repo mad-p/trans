@@ -6,7 +6,8 @@ SOURCES = main.c encode.c network.c
 TEST_SOURCES = test_encode.c encode.c
 OBJECTS = $(SOURCES:.c=.o)
 TEST_OBJECTS = $(TEST_SOURCES:.c=.o)
-TEST_PORT = 8081
+TEST_READ_PORT = 8080
+TEST_WRITE_PORT = 8081
 
 .PHONY: all clean test install
 
@@ -49,11 +50,14 @@ help:
 	@echo "  release  - Build optimized release version"
 	@echo "  help     - Show this help message"
 
-test_recv:
-	./trans -m from -p $(TEST_PORT) --lsp log_recv_std_port.log --lps log_recv_port_std.log -s cat
+test_connect:
+	./trans -m from -p $(TEST_READ_PORT) --lps log_rps.log --lsp log_rsp.log -s "./trans -q -m to --lps log_sps.log --lsp log_ssp.log -p $(TEST_WRITE_PORT)"
+
+test_pty_connect:
+	./trans -m from -p $(TEST_READ_PORT) --lps log_rps.log --lsp log_rsp.log -s "ssh -tt -e none localhost 'stty raw -icanon -echo; $(PWD)/trans -q -m to --lps $(PWD)/log_sps.log --lsp $(PWD)/log_ssp.log -p $(TEST_WRITE_PORT)'"
 
 test_send:
-	ruby bin.rb | ./trans -m to -p $(TEST_PORT) --lsp log_send_std_port.log --lps log_send_port_std.log  | tee hoge.txt
+	(ruby bin.rb | nc localhost $(TEST_READ_PORT)) & (nc -l $(TEST_WRITE_PORT) | tee hoge.txt)
 
 test_check:
 	cat hoge.txt | od -t x1 -A n| ruby -l -0777 -ne '$$_.split.each_slice(7).each{|x|puts x.join(" ")}' | less
