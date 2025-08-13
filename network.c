@@ -67,7 +67,7 @@ void process_data_stream(int input_fd, int output_fd, process_mode_t mode,
         } else if (bytes_read == 0) {
             if (buffer_pos > 0) {
                 if (log_file) {
-                    hex_dump_to_file(log_file, log_prefix, input_buffer, buffer_pos);
+                    hex_dump_to_file(log_file, log_prefix, input_buffer, buffer_pos, config);
                 }
 
                 if (mode == ENCODE_MODE) {
@@ -86,7 +86,7 @@ void process_data_stream(int input_fd, int output_fd, process_mode_t mode,
 
                 if (log_file) {
                     const char *proc_prefix = (mode == ENCODE_MODE) ? "enc-d:" : "dec-d:";
-                    hex_dump_to_file(log_file, proc_prefix, output_buffer, bytes_processed);
+                    hex_dump_to_file(log_file, proc_prefix, output_buffer, bytes_processed, config);
                 }
 
                 bytes_written = 0;
@@ -113,7 +113,7 @@ void process_data_stream(int input_fd, int output_fd, process_mode_t mode,
             
             if (buffer_pos >= BUFFER_SIZE) {
                 if (log_file) {
-                    hex_dump_to_file(log_file, log_prefix, input_buffer, buffer_pos);
+                    hex_dump_to_file(log_file, log_prefix, input_buffer, buffer_pos, config);
                 }
 
                 if (mode == ENCODE_MODE) {
@@ -132,7 +132,7 @@ void process_data_stream(int input_fd, int output_fd, process_mode_t mode,
 
                 if (log_file) {
                     const char *proc_prefix = (mode == ENCODE_MODE) ? "enc-d:" : "dec-d:";
-                    hex_dump_to_file(log_file, proc_prefix, output_buffer, bytes_processed);
+                    hex_dump_to_file(log_file, proc_prefix, output_buffer, bytes_processed, config);
                 }
 
                 bytes_written = 0;
@@ -162,9 +162,15 @@ void process_data_stream(int input_fd, int output_fd, process_mode_t mode,
         gettimeofday(&tv, NULL);
         tm_info = localtime(&tv.tv_sec);
 
-        fprintf(log_file, "%02d:%02d:%02d.%06d %s", 
-                tm_info->tm_hour, tm_info->tm_min, tm_info->tm_sec, (int)tv.tv_usec,
-                eof_message);
+        fprintf(log_file, "%02d:%02d:%02d.%06d ", 
+                tm_info->tm_hour, tm_info->tm_min, tm_info->tm_sec, (int)tv.tv_usec);
+        
+        // ユーザー定義プレフィクスがあれば追加
+        if (config && config->log_prefix) {
+            fprintf(log_file, "%s:", config->log_prefix);
+        }
+        
+        fprintf(log_file, "%s", eof_message);
         fflush(log_file);
         fclose(log_file);
     }

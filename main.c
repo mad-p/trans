@@ -8,7 +8,7 @@ void cleanup_and_exit(int sig) {
     exit(0);
 }
 
-void hex_dump_to_file(FILE *file, const char *prefix, const unsigned char *data, size_t len) {
+void hex_dump_to_file(FILE *file, const char *prefix, const unsigned char *data, size_t len, const config_t *config) {
     if (!file || !data || len == 0) return;
     
     struct timeval tv;
@@ -16,8 +16,16 @@ void hex_dump_to_file(FILE *file, const char *prefix, const unsigned char *data,
     gettimeofday(&tv, NULL);
     tm_info = localtime(&tv.tv_sec);
     
-    fprintf(file, "%02d:%02d:%02d.%06d %s", 
-            tm_info->tm_hour, tm_info->tm_min, tm_info->tm_sec, (int)tv.tv_usec, prefix);
+    fprintf(file, "%02d:%02d:%02d.%06d ", 
+            tm_info->tm_hour, tm_info->tm_min, tm_info->tm_sec, (int)tv.tv_usec);
+    
+    // ユーザー定義プレフィクスがあれば追加
+    if (config && config->log_prefix) {
+        fprintf(file, "%s:", config->log_prefix);
+    }
+    
+    fprintf(file, "%s", prefix);
+    
     for (size_t i = 0; i < len; i++) {
         fprintf(file, "%02x", data[i]);
         if (i < len - 1) {
@@ -29,7 +37,7 @@ void hex_dump_to_file(FILE *file, const char *prefix, const unsigned char *data,
 }
 
 void print_usage(const char *program_name) {
-    fprintf(stderr, "Usage: %s -m <send|recv|to|from> -p <port> [-h <host>] [-e <uuencode|escape>] [-s <command>] [-q] [--lps <file>] [--lsp <file>]\n", program_name);
+    fprintf(stderr, "Usage: %s -m <send|recv|to|from> -p <port> [options]\n", program_name);
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "  -m, --mode             Mode: send/to (connector) or recv/from (listener)\n");
     fprintf(stderr, "  -p, --port             TCP port number\n");
@@ -39,6 +47,8 @@ void print_usage(const char *program_name) {
     fprintf(stderr, "  -q, --quiet            Suppress stderr output\n");
     fprintf(stderr, "      --lps, --log-port-stdio  Log port->stdio/command traffic (hex dump)\n");
     fprintf(stderr, "      --lsp, --log-stdio-port  Log stdio/command->port traffic (hex dump)\n");
+    fprintf(stderr, "      --log-prefix       Custom prefix for log entries (default: none)\n");
+    fprintf(stderr, "      --version          Show version information\n");
     fprintf(stderr, "      --help             Show this help message\n");
 }
 
@@ -54,6 +64,8 @@ void parse_arguments(int argc, char *argv[], config_t *config) {
         {"lps", required_argument, 0, 1000},
         {"log-stdio-port", required_argument, 0, 1001},
         {"lsp", required_argument, 0, 1001},
+        {"log-prefix", required_argument, 0, 1002},
+        {"version", no_argument, 0, 1003},
         {"help", no_argument, 0, 0},
         {0, 0, 0, 0}
     };
@@ -66,6 +78,7 @@ void parse_arguments(int argc, char *argv[], config_t *config) {
     config->quiet = 0;
     config->log_port_stdio_file = NULL;
     config->log_stdio_port_file = NULL;
+    config->log_prefix = NULL;
 
     int c;
     int option_index = 0;
@@ -114,6 +127,12 @@ void parse_arguments(int argc, char *argv[], config_t *config) {
             case 1001:
                 config->log_stdio_port_file = optarg;
                 break;
+            case 1002:
+                config->log_prefix = optarg;
+                break;
+            case 1003:
+                printf("trans version %s\n", TRANS_VERSION);
+                exit(0);
             case 0:
                 if (strcmp(long_options[option_index].name, "help") == 0) {
                     print_usage(argv[0]);

@@ -18,6 +18,7 @@
 
 #define BUFFER_SIZE 256
 #define MAX_ENCODED_SIZE (BUFFER_SIZE * 4)
+#define TRANS_VERSION "1.0.0"
 
 typedef enum {
     METHOD_UUENCODE,
@@ -38,6 +39,7 @@ typedef struct {
     int quiet;
     char *log_port_stdio_file;
     char *log_stdio_port_file;
+    char *log_prefix;
 } config_t;
 
 // エンコード/デコード関数
@@ -60,6 +62,6 @@ extern volatile int running;
 void parse_arguments(int argc, char *argv[], config_t *config);
 void print_usage(const char *program_name);
 void cleanup_and_exit(int sig);
-void hex_dump_to_file(FILE *file, const char *prefix, const unsigned char *data, size_t len);
+void hex_dump_to_file(FILE *file, const char *prefix, const unsigned char *data, size_t len, const config_t *config);
 
 #endif
