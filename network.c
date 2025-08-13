@@ -52,7 +52,7 @@ void handle_connection(int sockfd, const config_t *config) {
             FILE *log_file = NULL;
 
             if (config->log_stdio_port_file) {
-                log_file = fopen(config->log_stdio_port_file, "a");
+                log_file = fopen(config->log_stdio_port_file, "w");
             }
 
             while ((bytes_read = read(from_cmd_fd, buffer, BUFFER_SIZE)) > 0) {
@@ -101,7 +101,7 @@ void handle_connection(int sockfd, const config_t *config) {
             FILE *log_file = NULL;
 
             if (config->log_port_stdio_file) {
-                log_file = fopen(config->log_port_stdio_file, "a");
+                log_file = fopen(config->log_port_stdio_file, "w");
             }
 
             while ((bytes_received = read(sockfd, buffer, BUFFER_SIZE)) > 0) {
@@ -172,7 +172,7 @@ void handle_connection(int sockfd, const config_t *config) {
             FILE *log_file = NULL;
 
             if (config->log_stdio_port_file) {
-                log_file = fopen(config->log_stdio_port_file, "a");
+                log_file = fopen(config->log_stdio_port_file, "w");
             }
 
             while ((bytes_read = read(STDIN_FILENO, buffer, BUFFER_SIZE)) > 0) {
@@ -217,7 +217,7 @@ void handle_connection(int sockfd, const config_t *config) {
                 FILE *log_file = NULL;
 
                 if (config->log_port_stdio_file) {
-                    log_file = fopen(config->log_port_stdio_file, "a");
+                    log_file = fopen(config->log_port_stdio_file, "w");
                 }
 
                 while ((bytes_received = read(sockfd, buffer, BUFFER_SIZE)) > 0) {
