@@ -14,7 +14,7 @@
 #include <time.h>
 #include <sys/time.h>
 #include <fcntl.h>
-#include <sys/select.h>
+#include <poll.h>
 
 #define BUFFER_SIZE 256
 #define MAX_ENCODED_SIZE (BUFFER_SIZE * 4)

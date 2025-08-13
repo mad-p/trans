@@ -1,26 +1,46 @@
 #include "trans.h"
 
 ssize_t read_with_timeout(int fd, void *buffer, size_t count, int timeout_ms) {
-    fd_set read_fds;
-    struct timeval timeout;
-    int select_result;
+    struct pollfd pfd;
+    int poll_result;
+    int original_flags;
+    ssize_t result;
     
-    FD_ZERO(&read_fds);
-    FD_SET(fd, &read_fds);
-    
-    timeout.tv_sec = timeout_ms / 1000;
-    timeout.tv_usec = (timeout_ms % 1000) * 1000;
-    
-    select_result = select(fd + 1, &read_fds, NULL, NULL, &timeout);
-    
-    if (select_result < 0) {
+    // ファイルディスクリプタをノンブロッキングモードに設定
+    original_flags = fcntl(fd, F_GETFL, 0);
+    if (original_flags == -1) {
         return -1;
-    } else if (select_result == 0) {
-        return 0;
-    } else if (FD_ISSET(fd, &read_fds)) {
-        return read(fd, buffer, count);
+    }
+    if (fcntl(fd, F_SETFL, original_flags | O_NONBLOCK) == -1) {
+        return -1;
     }
     
+    // pollで読み取り可能になるまで待機
+    pfd.fd = fd;
+    pfd.events = POLLIN;
+    pfd.revents = 0;
+    
+    poll_result = poll(&pfd, 1, timeout_ms);
+    
+    if (poll_result < 0) {
+        // pollエラー
+        fcntl(fd, F_SETFL, original_flags); // フラグを復元
+        return -1;
+    } else if (poll_result == 0) {
+        // タイムアウト
+        fcntl(fd, F_SETFL, original_flags); // フラグを復元
+        return 0;
+    }
+    
+    // データが読み取り可能
+    if (pfd.revents & POLLIN) {
+        result = read(fd, buffer, count);
+        fcntl(fd, F_SETFL, original_flags); // フラグを復元
+        return result;
+    }
+    
+    // その他のイベント
+    fcntl(fd, F_SETFL, original_flags); // フラグを復元
     return -1;
 }
 
