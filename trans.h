@@ -13,6 +13,8 @@
 #include <signal.h>
 #include <time.h>
 #include <sys/time.h>
+#include <fcntl.h>
+#include <sys/select.h>
 
 #define BUFFER_SIZE 256
 #define MAX_ENCODED_SIZE (BUFFER_SIZE * 4)
@@ -48,6 +50,7 @@ size_t escape_decode_data(const unsigned char *input, size_t input_len, unsigned
 int sender_mode(const config_t *config);
 int receiver_mode(const config_t *config);
 void handle_connection(int sockfd, const config_t *config);
+ssize_t read_with_timeout(int fd, void *buffer, size_t count, int timeout_ms);
 
 // グローバル変数
 extern volatile int running;
