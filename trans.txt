@@ -70,3 +70,5 @@ process_data_streamからデコード前のバッファ内容をhex_dump_to_file
 - log_fileがNULLでなければ、時刻とプレフィクスをつけてメッセージを出力するという処理が何度もくり返されています。この処理を関数に切り出してください
 
 - network.c 67行目の if (bytes_read == 0) のthen節とelse節は似ているので、まとめて関数にしてください
+
+- ファイルディスクリプタをノンブロッキングモードに設定する処理をread_with_timeoutで都度行っていますが、これはprocess_data_stream開始時に一度だけやればよいです。元に戻す必要はありません

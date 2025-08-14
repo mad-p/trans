@@ -18,7 +18,7 @@
 
 #define BUFFER_SIZE 256
 #define MAX_ENCODED_SIZE (BUFFER_SIZE * 4)
-#define TRANS_VERSION "1.2.0"
+#define TRANS_VERSION "1.2.1"
 
 typedef enum {
     METHOD_UUENCODE,

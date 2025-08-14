@@ -58,17 +58,7 @@ static void process_and_output_buffer(process_mode_t mode, FILE *log_file, const
 ssize_t read_with_timeout(int fd, void *buffer, size_t count, int timeout_ms) {
     struct pollfd pfd;
     int poll_result;
-    int original_flags;
     ssize_t result;
-    
-    // ファイルディスクリプタをノンブロッキングモードに設定
-    original_flags = fcntl(fd, F_GETFL, 0);
-    if (original_flags == -1) {
-        return -2;
-    }
-    if (fcntl(fd, F_SETFL, original_flags | O_NONBLOCK) == -1) {
-        return -2;
-    }
     
     // pollで読み取り可能になるまで待機
     pfd.fd = fd;
@@ -79,23 +69,19 @@ ssize_t read_with_timeout(int fd, void *buffer, size_t count, int timeout_ms) {
     
     if (poll_result < 0) {
         // pollエラー
-        fcntl(fd, F_SETFL, original_flags); // フラグを復元
         return -2;
     } else if (poll_result == 0) {
         // タイムアウト
-        fcntl(fd, F_SETFL, original_flags); // フラグを復元
         return -1;
     }
     
     // データが読み取り可能
     if (pfd.revents & POLLIN) {
         result = read(fd, buffer, count);
-        fcntl(fd, F_SETFL, original_flags); // フラグを復元
         return result;
     }
     
     // その他のイベント
-    fcntl(fd, F_SETFL, original_flags); // フラグを復元
     return -2;
 }
 
@@ -108,6 +94,12 @@ void process_data_stream(int input_fd, int output_fd, process_mode_t mode,
     ssize_t bytes_read;
     size_t bytes_processed;
     size_t remaining_bytes = 0;
+    
+    // ファイルディスクリプタをノンブロッキングモードに設定（一度だけ）
+    int original_flags = fcntl(input_fd, F_GETFL, 0);
+    if (original_flags != -1) {
+        fcntl(input_fd, F_SETFL, original_flags | O_NONBLOCK);
+    }
     
     while (1) {
         bytes_read = read_with_timeout(input_fd, input_buffer + buffer_pos, 
