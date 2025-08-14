@@ -147,6 +147,11 @@ void process_data_stream(int input_fd, int output_fd, process_mode_t mode,
 void handle_connection_common(int sockfd, int input_fd, int output_fd, const config_t *config) {
     pid_t pid1, pid2;
 
+    // delayが設定されている場合は待機
+    if (config->delay_seconds > 0) {
+        sleep(config->delay_seconds);
+    }
+
     pid1 = fork();
     if (pid1 == 0) {
         FILE *log_file = NULL;
@@ -282,15 +287,7 @@ int sender_mode(const config_t *config) {
     if (!config->quiet) {
         fprintf(stderr, "Connected to server\n");
     }
-    
-    // delayが設定されている場合は待機
-    if (config->delay_seconds > 0) {
-        if (!config->quiet) {
-            fprintf(stderr, "Waiting %d seconds before handling connection...\n", config->delay_seconds);
-        }
-        sleep(config->delay_seconds);
-    }
-    
+
     // 接続処理
     handle_connection(client_sock, config);
     
