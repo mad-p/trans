@@ -8,8 +8,8 @@ void cleanup_and_exit(int sig) {
     exit(0);
 }
 
-void hex_dump_to_file(FILE *file, const char *prefix, const unsigned char *data, size_t len, const config_t *config) {
-    if (!file || !data || len == 0) return;
+void log_message(FILE *file, const config_t *config, const char *message) {
+    if (!file || !message) return;
     
     struct timeval tv;
     struct tm *tm_info;
@@ -19,10 +19,18 @@ void hex_dump_to_file(FILE *file, const char *prefix, const unsigned char *data,
     fprintf(file, "%02d:%02d:%02d.%06d ", 
             tm_info->tm_hour, tm_info->tm_min, tm_info->tm_sec, (int)tv.tv_usec);
     
-    // ユーザー定義プレフィクスがあれば追加
     if (config && config->log_prefix) {
         fprintf(file, "%s:", config->log_prefix);
     }
+    
+    fprintf(file, "%s", message);
+    fflush(file);
+}
+
+void hex_dump_to_file(FILE *file, const char *prefix, const unsigned char *data, size_t len, const config_t *config) {
+    if (!file || !data || len == 0) return;
+    
+    log_message(file, config, "");
     
     fprintf(file, "%s", prefix);
     

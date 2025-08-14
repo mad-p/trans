@@ -18,7 +18,7 @@
 
 #define BUFFER_SIZE 256
 #define MAX_ENCODED_SIZE (BUFFER_SIZE * 4)
-#define TRANS_VERSION "1.0.3"
+#define TRANS_VERSION "1.0.4"
 
 typedef enum {
     METHOD_UUENCODE,
@@ -63,6 +63,7 @@ extern volatile int running;
 void parse_arguments(int argc, char *argv[], config_t *config);
 void print_usage(const char *program_name);
 void cleanup_and_exit(int sig);
+void log_message(FILE *file, const config_t *config, const char *message);
 void hex_dump_to_file(FILE *file, const char *prefix, const unsigned char *data, size_t len, const config_t *config);
 
 #endif

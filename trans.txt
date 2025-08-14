@@ -66,3 +66,5 @@ process_data_streamからデコード前のバッファ内容をhex_dump_to_file
 - --delay (-d) オプションを追加します。-dの引数は整数で秒数を表わします
     - fromモードのとき、ポートをacceptしてから、handle_connectionを実行するまでに指定された時間だけ待ちます
     - toモードのとき、ポートにconnectしてから、handle_connectionを実行するまでに指定された時間だけ待ちます
+
+- log_fileがNULLでなければ、時刻とプレフィクスをつけてメッセージを出力するという処理が何度もくり返されています。この処理を関数に切り出してください

@@ -1,5 +1,60 @@
 #include "trans.h"
 
+typedef enum {
+    ENCODE_MODE,
+    DECODE_MODE
+} process_mode_t;
+
+static void process_and_output_buffer(process_mode_t mode, FILE *log_file, const char *log_prefix, 
+                                     const config_t *config, unsigned char *input_buffer, 
+                                     size_t *buffer_pos, unsigned char *output_buffer, 
+                                     size_t *bytes_processed, size_t *remaining_bytes, 
+                                     int output_fd) {
+    size_t bytes_written;
+    
+    if (mode == ENCODE_MODE) {
+        if (log_file) {
+            hex_dump_to_file(log_file, log_prefix, input_buffer, *buffer_pos, config);
+        }
+        if (config->method == METHOD_UUENCODE) {
+            *bytes_processed = uuencode_data(input_buffer, *buffer_pos, output_buffer);
+        } else {
+            *bytes_processed = escape_encode_data(input_buffer, *buffer_pos, output_buffer);
+        }
+    } else {
+        if (config->method == METHOD_UUENCODE) {
+            *bytes_processed = uudecode_data(input_buffer, *buffer_pos, output_buffer, remaining_bytes);
+        } else {
+            *bytes_processed = escape_decode_data(input_buffer, *buffer_pos, output_buffer, remaining_bytes);
+        }
+        if (log_file) {
+            hex_dump_to_file(log_file, log_prefix, input_buffer, *buffer_pos - *remaining_bytes, config);
+        }
+    }
+
+    if (log_file) {
+        const char *proc_prefix = (mode == ENCODE_MODE) ? "enc-d:" : "dec-d:";
+        hex_dump_to_file(log_file, proc_prefix, output_buffer, *bytes_processed, config);
+    }
+
+    bytes_written = 0;
+    while (bytes_written < *bytes_processed) {
+        ssize_t written = write(output_fd, output_buffer + bytes_written,
+                              *bytes_processed - bytes_written);
+        if (written <= 0) {
+            exit(1);
+        }
+        bytes_written += (size_t)written;
+    }
+
+    if (*remaining_bytes > 0) {
+	memmove(input_buffer, input_buffer + *buffer_pos - *remaining_bytes, *remaining_bytes);
+	*buffer_pos = *remaining_bytes;
+    } else {
+	*buffer_pos = 0;
+    }
+}
+
 ssize_t read_with_timeout(int fd, void *buffer, size_t count, int timeout_ms) {
     struct pollfd pfd;
     int poll_result;
@@ -44,18 +99,14 @@ ssize_t read_with_timeout(int fd, void *buffer, size_t count, int timeout_ms) {
     return -1;
 }
 
-typedef enum {
-    ENCODE_MODE,
-    DECODE_MODE
-} process_mode_t;
-
 void process_data_stream(int input_fd, int output_fd, process_mode_t mode, 
                         const config_t *config, FILE *log_file, const char *log_prefix,
                         const char *eof_message) {
     unsigned char input_buffer[BUFFER_SIZE];
     unsigned char output_buffer[MAX_ENCODED_SIZE];
     size_t buffer_pos = 0;
-    ssize_t bytes_read, bytes_processed, bytes_written;
+    ssize_t bytes_read;
+    size_t bytes_processed;
     size_t remaining_bytes = 0;
     
     while (1) {
@@ -66,116 +117,21 @@ void process_data_stream(int input_fd, int output_fd, process_mode_t mode,
             break;
         } else if (bytes_read == 0) {
             if (buffer_pos > 0) {
-                if (mode == ENCODE_MODE) {
-                    if (log_file) {
-                        hex_dump_to_file(log_file, log_prefix, input_buffer, buffer_pos, config);
-                    }
-                    if (config->method == METHOD_UUENCODE) {
-                        bytes_processed = uuencode_data(input_buffer, buffer_pos, output_buffer);
-                    } else {
-                        bytes_processed = escape_encode_data(input_buffer, buffer_pos, output_buffer);
-                    }
-                } else {
-                    if (config->method == METHOD_UUENCODE) {
-                        bytes_processed = uudecode_data(input_buffer, buffer_pos, output_buffer, &remaining_bytes);
-                    } else {
-                        bytes_processed = escape_decode_data(input_buffer, buffer_pos, output_buffer, &remaining_bytes);
-                    }
-                    if (log_file) {
-                        hex_dump_to_file(log_file, log_prefix, input_buffer, buffer_pos - remaining_bytes, config);
-                    }
-                }
-
-                if (log_file) {
-                    const char *proc_prefix = (mode == ENCODE_MODE) ? "enc-d:" : "dec-d:";
-                    hex_dump_to_file(log_file, proc_prefix, output_buffer, bytes_processed, config);
-                }
-
-                bytes_written = 0;
-                while (bytes_written < bytes_processed) {
-                    ssize_t written = write(output_fd, output_buffer + bytes_written,
-                                          bytes_processed - bytes_written);
-                    if (written <= 0) {
-                        exit(1);
-                    }
-                    bytes_written += written;
-                }
-                
-                // 残りバイトがある場合、バッファの先頭に移動
-                if (remaining_bytes > 0) {
-                    memmove(input_buffer, input_buffer + buffer_pos - remaining_bytes, remaining_bytes);
-                    buffer_pos = remaining_bytes;
-                } else {
-                    buffer_pos = 0;
-                }
+                process_and_output_buffer(mode, log_file, log_prefix, config, input_buffer, &buffer_pos, 
+                                        output_buffer, &bytes_processed, &remaining_bytes, output_fd);
             }
-            continue;
         } else {
-            buffer_pos += bytes_read;
+            buffer_pos += (size_t)bytes_read;
             
             if (buffer_pos >= BUFFER_SIZE) {
-                if (mode == ENCODE_MODE) {
-                    if (log_file) {
-                        hex_dump_to_file(log_file, log_prefix, input_buffer, buffer_pos, config);
-                    }
-                    if (config->method == METHOD_UUENCODE) {
-                        bytes_processed = uuencode_data(input_buffer, buffer_pos, output_buffer);
-                    } else {
-                        bytes_processed = escape_encode_data(input_buffer, buffer_pos, output_buffer);
-                    }
-                } else {
-                    if (config->method == METHOD_UUENCODE) {
-                        bytes_processed = uudecode_data(input_buffer, buffer_pos, output_buffer, &remaining_bytes);
-                    } else {
-                        bytes_processed = escape_decode_data(input_buffer, buffer_pos, output_buffer, &remaining_bytes);
-                    }
-                    if (log_file) {
-                        hex_dump_to_file(log_file, log_prefix, input_buffer, buffer_pos - remaining_bytes, config);
-                    }
-                }
-
-                if (log_file) {
-                    const char *proc_prefix = (mode == ENCODE_MODE) ? "enc-d:" : "dec-d:";
-                    hex_dump_to_file(log_file, proc_prefix, output_buffer, bytes_processed, config);
-                }
-
-                bytes_written = 0;
-                while (bytes_written < bytes_processed) {
-                    ssize_t written = write(output_fd, output_buffer + bytes_written,
-                                          bytes_processed - bytes_written);
-                    if (written <= 0) {
-                        exit(1);
-                    }
-                    bytes_written += written;
-                }
-                
-                // 残りバイトがある場合、バッファの先頭に移動
-                if (remaining_bytes > 0) {
-                    memmove(input_buffer, input_buffer + buffer_pos - remaining_bytes, remaining_bytes);
-                    buffer_pos = remaining_bytes;
-                } else {
-                    buffer_pos = 0;
-                }
-            }
+                process_and_output_buffer(mode, log_file, log_prefix, config, input_buffer, &buffer_pos, 
+                                        output_buffer, &bytes_processed, &remaining_bytes, output_fd);
+	    }
         }
     }
     
     if (log_file) {
-        struct timeval tv;
-        struct tm *tm_info;
-        gettimeofday(&tv, NULL);
-        tm_info = localtime(&tv.tv_sec);
-
-        fprintf(log_file, "%02d:%02d:%02d.%06d ", 
-                tm_info->tm_hour, tm_info->tm_min, tm_info->tm_sec, (int)tv.tv_usec);
-        
-        // ユーザー定義プレフィクスがあれば追加
-        if (config && config->log_prefix) {
-            fprintf(log_file, "%s:", config->log_prefix);
-        }
-        
-        fprintf(log_file, "%s", eof_message);
-        fflush(log_file);
+        log_message(log_file, config, eof_message);
         fclose(log_file);
     }
 }
