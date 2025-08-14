@@ -18,7 +18,7 @@ class DumpChecker
   end
 
   def parse_log_line(line)
-    if match = line.match(/^(\d{2}:\d{2}:\d{2}\.\d{6})\s+([^:]+:[^:]+):\s*(.+)$/)
+    if match = line.match(/^(\d{2}:\d{2}:\d{2}\.\d{6})\s+([^:]+:[^:]+):(.+)$/)
       timestamp = match[1]
       tag = match[2]
       hex_data = match[3]
@@ -40,6 +40,7 @@ class DumpChecker
           next unless parsed
           
           tag = parsed[:tag]
+          current_position = @streams[tag].length
           @streams[tag].concat(parsed[:bytes])
           
           @log_lines[tag] ||= []
@@ -47,7 +48,8 @@ class DumpChecker
             file: file_path,
             line_no: line_no + 1,
             original_line: parsed[:original_line],
-            byte_position: @streams[tag].length - parsed[:bytes].length
+            byte_position: current_position,
+            byte_count: parsed[:bytes].length
           }
         end
       end
@@ -59,7 +61,26 @@ class DumpChecker
     
     @log_lines[tag].find do |entry|
       entry[:byte_position] <= position && 
-      position < entry[:byte_position] + (entry[:original_line].split(':').last.split.length)
+      position < entry[:byte_position] + entry[:byte_count]
+    end
+  end
+
+  def highlight_byte_in_log_line(log_line, byte_position, entry_byte_position)
+    if match = log_line.match(/^(\d{2}:\d{2}:\d{2}\.\d{6})\s+([^:]+:[^:]+):(.+)$/)
+      timestamp = match[1]
+      tag = match[2]
+      hex_data = match[3]
+      hex_bytes = hex_data.split
+      
+      target_index = byte_position - entry_byte_position
+      
+      if target_index >= 0 && target_index < hex_bytes.length
+        hex_bytes[target_index] = "\033[7m#{hex_bytes[target_index]}\033[0m"
+      end
+      
+      "#{timestamp} #{tag}:#{hex_bytes.join(' ')}"
+    else
+      log_line
     end
   end
 
@@ -111,18 +132,20 @@ class DumpChecker
       
       errors.each do |error|
         puts "位置 #{error[:position]}: #{error[:tag1]} vs #{error[:tag2]}"
-        puts "  #{error[:tag1]}: 0x#{error[:byte1]&.to_s(16)&.upcase || 'N/A'}"
-        puts "  #{error[:tag2]}: 0x#{error[:byte2]&.to_s(16)&.upcase || 'N/A'}"
+        puts "  #{error[:tag1]}: #{error[:byte1]&.to_s(16)&.upcase || 'N/A'}"
+        puts "  #{error[:tag2]}: #{error[:byte2]&.to_s(16)&.upcase || 'N/A'}"
         puts
         
         if error[:log_entry1]
           puts "  #{error[:tag1]} ログ行:"
-          puts "    #{error[:log_entry1][:file]}:#{error[:log_entry1][:line_no]}: #{error[:log_entry1][:original_line]}"
+          highlighted_line1 = highlight_byte_in_log_line(error[:log_entry1][:original_line], error[:position], error[:log_entry1][:byte_position])
+          puts "    #{error[:log_entry1][:file]}:#{error[:log_entry1][:line_no]}: #{highlighted_line1}"
         end
         
         if error[:log_entry2]
           puts "  #{error[:tag2]} ログ行:"
-          puts "    #{error[:log_entry2][:file]}:#{error[:log_entry2][:line_no]}: #{error[:log_entry2][:original_line]}"
+          highlighted_line2 = highlight_byte_in_log_line(error[:log_entry2][:original_line], error[:position], error[:log_entry2][:byte_position])
+          puts "    #{error[:log_entry2][:file]}:#{error[:log_entry2][:line_no]}: #{highlighted_line2}"
         end
         puts "-" * 80
       end
