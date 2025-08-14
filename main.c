@@ -93,7 +93,7 @@ void parse_arguments(int argc, char *argv[], config_t *config) {
     config->quiet = 0;
     config->log_port_stdio_file = NULL;
     config->log_stdio_port_file = NULL;
-    config->log_prefix = NULL;
+    config->log_prefix = "x";
 
     int c;
     int option_index = 0;

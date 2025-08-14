@@ -65,13 +65,13 @@ static void process_and_output_buffer(process_mode_t mode, FILE *log_file, const
 
             continue;
         }
-        if (log_file) {
-            if (written <= 0) {
+        if (written <= 0) {
+            if (log_file) {
                 char mes[BUFSIZ];
                 sprintf(mes, "write failed: %s (%d)\n", strerror(errno), errno);
                 log_message(log_file, config, mes);
-                exit(1);
             }
+            exit(1);
         }
         bytes_written += (size_t)written;
     }

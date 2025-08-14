@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c99 -pedantic -g -O
+CFLAGS = -Wall -Wextra -std=c99 -pedantic -O
 TARGET = trans
 TEST_TARGET = test_encode
 SOURCES = main.c encode.c network.c
