@@ -117,6 +117,10 @@ void process_data_stream(int input_fd, int output_fd, process_mode_t mode,
             break;
         } else if (bytes_read == 0) {
             if (buffer_pos > 0) {
+		if (log_file) {
+		    log_message(log_file, config, "read timeout\n");
+		}
+
                 process_and_output_buffer(mode, log_file, log_prefix, config, input_buffer, &buffer_pos, 
                                         output_buffer, &bytes_processed, &remaining_bytes, output_fd);
             }
@@ -124,6 +128,10 @@ void process_data_stream(int input_fd, int output_fd, process_mode_t mode,
             buffer_pos += (size_t)bytes_read;
             
             if (buffer_pos >= BUFFER_SIZE) {
+		if (log_file) {
+		    log_message(log_file, config, "buffer full\n");
+		}
+
                 process_and_output_buffer(mode, log_file, log_prefix, config, input_buffer, &buffer_pos, 
                                         output_buffer, &bytes_processed, &remaining_bytes, output_fd);
 	    }

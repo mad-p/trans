@@ -68,3 +68,5 @@ process_data_streamからデコード前のバッファ内容をhex_dump_to_file
     - toモードのとき、ポートにconnectしてから、handle_connectionを実行するまでに指定された時間だけ待ちます
 
 - log_fileがNULLでなければ、時刻とプレフィクスをつけてメッセージを出力するという処理が何度もくり返されています。この処理を関数に切り出してください
+
+- network.c 67行目の if (bytes_read == 0) のthen節とelse節は似ているので、まとめて関数にしてください
