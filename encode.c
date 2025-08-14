@@ -66,15 +66,15 @@ size_t uudecode_data(const unsigned char *input, size_t input_len, unsigned char
             }
             continue;
         }
-        
+
+        // 行全体が存在するかどうかをチェック
+        if (i + line_len * 4 / 3 > input_len) {
+            *remaining_bytes = input_len - line_start;
+            break;
+        }
+
         int decoded = 0;
         while (decoded < line_len) {
-            // 4バイト組が完全に利用可能かチェック
-            if (i + 3 >= input_len) {
-                // 不完全な4バイト組 - 行全体を残りデータとして扱う
-                *remaining_bytes = input_len - line_start;
-                goto done;
-            }
             
             unsigned char c1 = input[i] - ' ';
             unsigned char c2 = input[i + 1] - ' ';
@@ -103,7 +103,6 @@ size_t uudecode_data(const unsigned char *input, size_t input_len, unsigned char
         }
     }
     
-done:
     return j;
 }
 

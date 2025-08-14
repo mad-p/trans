@@ -1,6 +1,7 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c99 -pedantic -O
 TARGET = trans
+ENCODE = escape
 TEST_TARGET = test_encode
 SOURCES = main.c encode.c network.c
 TEST_SOURCES = test_encode.c encode.c
@@ -51,10 +52,10 @@ help:
 	@echo "  help     - Show this help message"
 
 test_connect:
-	./trans -m from -p $(TEST_READ_PORT) --ll -s "./trans -q -m to --lr -p $(TEST_WRITE_PORT)"
+	./trans -m from -e $(ENCODE) -p $(TEST_READ_PORT) --ll -s "./trans -q -m to -e $(ENCODE) --lr -p $(TEST_WRITE_PORT)"
 
 test_pty_connect:
-	./trans -m from -p $(TEST_READ_PORT) --ll -s "ssh -tt -e none localhost 'stty raw -icanon -echo; $(PWD)/trans -q -m to --lr -p $(TEST_WRITE_PORT)'"
+	./trans -m from -e $(ENCODE) -p $(TEST_READ_PORT) --ll -s "ssh -tt -e none localhost 'stty raw -icanon -echo; $(PWD)/trans -q -m to -e $(ENCODE) --lr -p $(TEST_WRITE_PORT)'"
 
 test_send:
 	(ruby bin.rb | socat -u - TCP:localhost:$(TEST_READ_PORT) > /dev/null) & (socat -u "TCP-LISTEN:$(TEST_WRITE_PORT),reuseaddr" - < /dev/null | tee hoge.txt)
@@ -62,8 +63,11 @@ test_send:
 test_check:
 	cat hoge.txt | od -t x1 -A n| ruby -l -0777 -ne '$$_.split.each_slice(7).each{|x|puts x.join(" ")}' | less
 
+test_check_dump:
+	./dump_checker.rb log*.log | less
+
 test_tunnel:
-	./trans -m from -p 20022 -d 8 --ll -s "ssh -tt -e none localhost 'stty raw -icanon -echo; cd $(PWD); ./trans -q -m to --lr -p 22 -d 1'"
+	./trans -e $(ENCODE) -m from -p 20022 -d 8 --ll -s "ssh -tt -e none localhost 'stty raw -icanon -echo; cd $(PWD); ./trans -e $(ENCODE) -q -m to --lr -p 22 -d 1'"
 
 test_ssh:
 	ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -v localhost -p 20022
