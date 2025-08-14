@@ -47,7 +47,7 @@ static void process_and_output_buffer(process_mode_t mode, FILE *log_file, const
 
         ssize_t written = write(output_fd, output_buffer + bytes_written,
                               *bytes_processed - bytes_written);
-        if (written == EWOULDBLOCK || written == EAGAIN) {
+        if (written < 0 && errno == EAGAIN) {
             if (log_file) {
                 char mes[BUFSIZ];
                 sprintf(mes, "write would block: %d\n", errno);
