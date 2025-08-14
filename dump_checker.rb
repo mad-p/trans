@@ -18,6 +18,7 @@ class DumpChecker
   end
 
   def parse_log_line(line)
+    return nil if /write|read|buffer/=~ line
     if match = line.match(/^(\d{2}:\d{2}:\d{2}\.\d{6})\s+([^:]+:[^:]+):(.+)$/)
       timestamp = match[1]
       tag = match[2]

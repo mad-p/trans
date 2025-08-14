@@ -61,3 +61,12 @@ test_send:
 
 test_check:
 	cat hoge.txt | od -t x1 -A n| ruby -l -0777 -ne '$$_.split.each_slice(7).each{|x|puts x.join(" ")}' | less
+
+test_tunnel:
+	./trans -m from -p 20022 -d 8 --ll -s "ssh -tt -e none localhost 'stty raw -icanon -echo; cd $(PWD); ./trans -q -m to --lr -p 22 -d 1'"
+
+test_ssh:
+	ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -v localhost -p 20022
+
+test_watch:
+	watch -n 2 "ps augxww | egrep '@:|trans' | sort"

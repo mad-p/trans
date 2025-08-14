@@ -39,12 +39,24 @@ static void process_and_output_buffer(process_mode_t mode, FILE *log_file, const
 
     bytes_written = 0;
     while (bytes_written < *bytes_processed) {
+        if (log_file) {
+            char mes[BUFSIZ];
+            sprintf(mes, "enc-d:write %ld bytes\n", *bytes_processed - bytes_written);
+            log_message(log_file, config, mes);
+        }
+
         ssize_t written = write(output_fd, output_buffer + bytes_written,
                               *bytes_processed - bytes_written);
         if (written <= 0) {
+            log_message(log_file, config, "write failed");
             exit(1);
         }
         bytes_written += (size_t)written;
+    }
+    if (log_file) {
+        char mes[BUFSIZ];
+        sprintf(mes, "enc-d:write finished\n");
+        log_message(log_file, config, mes);
     }
 
     if (*remaining_bytes > 0) {
@@ -157,15 +169,7 @@ void handle_connection_common(int sockfd, int input_fd, int output_fd, const con
         }
 
         // close unnecessary fds
-        if (!config->quiet) {
-            fprintf(stderr, "stream->decode->socket: close fds\n");
-        }
-
         close(output_fd);
-
-        if (!config->quiet) {
-            fprintf(stderr, "stream->decode->socket: start handling\n");
-        }
 
         process_data_stream(input_fd, sockfd, DECODE_MODE, config, log_file, 
                           "todec:", "from input: EOF detected");
@@ -184,15 +188,7 @@ void handle_connection_common(int sockfd, int input_fd, int output_fd, const con
             }
             
             // close unnecessary fds
-            if (!config->quiet) {
-                fprintf(stderr, "socket -> encode -> stream: close fds\n");
-            }
-
             close(input_fd);
-
-            if (!config->quiet) {
-                fprintf(stderr, "socket -> encode -> stream: start handling\n");
-            }
 
             process_data_stream(sockfd, output_fd, ENCODE_MODE, config, log_file,
                               "toenc:", "from socket: EOF detected");
