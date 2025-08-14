@@ -47,14 +47,22 @@ static void process_and_output_buffer(process_mode_t mode, FILE *log_file, const
 
         ssize_t written = write(output_fd, output_buffer + bytes_written,
                               *bytes_processed - bytes_written);
-        if (written == EWOULDBLOCK) {
+        if (written == EWOULDBLOCK || written == EAGAIN) {
             if (log_file) {
-                log_message(log_file, config, "EWOULDBLOCK\n");
+                char mes[BUFSIZ];
+                sprintf(mes, "write would block: %d\n", errno);
+                log_message(log_file, config, mes);
             }
-            struct timespec ts;
-            ts.tv_sec = 0;
-            ts.tv_nsec = 200 * 1000 * 1000; // 200ms = 200,000,000ns
-            nanosleep(&ts, NULL);
+
+            struct pollfd pfd;
+    
+            // pollで書き込み可能になるまで待機
+            pfd.fd = output_fd;
+            pfd.events = POLLOUT;
+            pfd.revents = 0;
+    
+            poll(&pfd, 1, 1000); // 1s
+
             continue;
         }
         if (log_file) {
