@@ -132,8 +132,8 @@ class DumpChecker
       
       errors.each do |error|
         puts "位置 #{error[:position]}: #{error[:tag1]} vs #{error[:tag2]}"
-        puts "  #{error[:tag1]}: #{error[:byte1]&.to_s(16)&.upcase || 'N/A'}"
-        puts "  #{error[:tag2]}: #{error[:byte2]&.to_s(16)&.upcase || 'N/A'}"
+        puts "  #{error[:tag1]}: #{error[:byte1]&.to_s(16) || 'N/A'}"
+        puts "  #{error[:tag2]}: #{error[:byte2]&.to_s(16) || 'N/A'}"
         puts
         
         if error[:log_entry1]

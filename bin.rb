@@ -9,3 +9,4 @@ sleep(2)
 end
 sleep(2)
 20.times { puts " " * 6 }
+puts "finish"

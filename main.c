@@ -192,6 +192,7 @@ int main(int argc, char *argv[]) {
     signal(SIGPIPE, SIG_IGN);
 
     parse_arguments(argc, argv, &config);
+    config.argv0 = argv[0];
 
     if (config.mode == MODE_SENDER) {
         return sender_mode(&config);

@@ -57,7 +57,7 @@ test_pty_connect:
 	./trans -m from -p $(TEST_READ_PORT) --ll -s "ssh -tt -e none localhost 'stty raw -icanon -echo; $(PWD)/trans -q -m to --lr -p $(TEST_WRITE_PORT)'"
 
 test_send:
-	(ruby bin.rb | nc localhost $(TEST_READ_PORT)) & (nc -l $(TEST_WRITE_PORT) | tee hoge.txt)
+	(ruby bin.rb | socat -u - TCP:localhost:$(TEST_READ_PORT) > /dev/null) & (socat -u "TCP-LISTEN:$(TEST_WRITE_PORT),reuseaddr" - < /dev/null | tee hoge.txt)
 
 test_check:
 	cat hoge.txt | od -t x1 -A n| ruby -l -0777 -ne '$$_.split.each_slice(7).each{|x|puts x.join(" ")}' | less

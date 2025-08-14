@@ -48,10 +48,10 @@ static void process_and_output_buffer(process_mode_t mode, FILE *log_file, const
     }
 
     if (*remaining_bytes > 0) {
-	memmove(input_buffer, input_buffer + *buffer_pos - *remaining_bytes, *remaining_bytes);
-	*buffer_pos = *remaining_bytes;
+        memmove(input_buffer, input_buffer + *buffer_pos - *remaining_bytes, *remaining_bytes);
+        *buffer_pos = *remaining_bytes;
     } else {
-	*buffer_pos = 0;
+        *buffer_pos = 0;
     }
 }
 
@@ -64,10 +64,10 @@ ssize_t read_with_timeout(int fd, void *buffer, size_t count, int timeout_ms) {
     // ファイルディスクリプタをノンブロッキングモードに設定
     original_flags = fcntl(fd, F_GETFL, 0);
     if (original_flags == -1) {
-        return -1;
+        return -2;
     }
     if (fcntl(fd, F_SETFL, original_flags | O_NONBLOCK) == -1) {
-        return -1;
+        return -2;
     }
     
     // pollで読み取り可能になるまで待機
@@ -80,11 +80,11 @@ ssize_t read_with_timeout(int fd, void *buffer, size_t count, int timeout_ms) {
     if (poll_result < 0) {
         // pollエラー
         fcntl(fd, F_SETFL, original_flags); // フラグを復元
-        return -1;
+        return -2;
     } else if (poll_result == 0) {
         // タイムアウト
         fcntl(fd, F_SETFL, original_flags); // フラグを復元
-        return 0;
+        return -1;
     }
     
     // データが読み取り可能
@@ -96,7 +96,7 @@ ssize_t read_with_timeout(int fd, void *buffer, size_t count, int timeout_ms) {
     
     // その他のイベント
     fcntl(fd, F_SETFL, original_flags); // フラグを復元
-    return -1;
+    return -2;
 }
 
 void process_data_stream(int input_fd, int output_fd, process_mode_t mode, 
@@ -113,28 +113,30 @@ void process_data_stream(int input_fd, int output_fd, process_mode_t mode,
         bytes_read = read_with_timeout(input_fd, input_buffer + buffer_pos, 
                                      BUFFER_SIZE - buffer_pos, 200);
         
-        if (bytes_read < 0) {
+        if (bytes_read <= -2) { // エラー
             break;
-        } else if (bytes_read == 0) {
+        } else if (bytes_read == -1 || bytes_read == 0) { // タイムアウトまたはEOF
             if (buffer_pos > 0) {
-		if (log_file) {
-		    log_message(log_file, config, "read timeout\n");
-		}
+                if (log_file) {
+                    log_message(log_file, config, "read timeout\n");
+                }
 
                 process_and_output_buffer(mode, log_file, log_prefix, config, input_buffer, &buffer_pos, 
                                         output_buffer, &bytes_processed, &remaining_bytes, output_fd);
             }
+            if (bytes_read == 0)
+                break; //EOF
         } else {
             buffer_pos += (size_t)bytes_read;
             
             if (buffer_pos >= BUFFER_SIZE) {
-		if (log_file) {
-		    log_message(log_file, config, "buffer full\n");
-		}
+                if (log_file) {
+                    log_message(log_file, config, "buffer full\n");
+                }
 
                 process_and_output_buffer(mode, log_file, log_prefix, config, input_buffer, &buffer_pos, 
                                         output_buffer, &bytes_processed, &remaining_bytes, output_fd);
-	    }
+            }
         }
     }
     
@@ -154,33 +156,78 @@ void handle_connection_common(int sockfd, int input_fd, int output_fd, const con
 
     pid1 = fork();
     if (pid1 == 0) {
+        // input_fd -> decode -> sockfd
+        sprintf(config->argv0, "@:%csp", config->log_prefix[0]);
+
         FILE *log_file = NULL;
         if (config->log_stdio_port_file) {
             log_file = fopen(config->log_stdio_port_file, "w");
         }
-        
+
+        // close unnecessary fds
+        if (!config->quiet) {
+            fprintf(stderr, "stream->decode->socket: close fds\n");
+        }
+
+        close(output_fd);
+
+        if (!config->quiet) {
+            fprintf(stderr, "stream->decode->socket: start handling\n");
+        }
+
         process_data_stream(input_fd, sockfd, DECODE_MODE, config, log_file, 
                           "todec:", "from input: EOF detected");
-        
-        shutdown(sockfd, SHUT_WR);
+        close(input_fd);
+        close(sockfd);
         exit(0);
     } else if (pid1 > 0) {
         pid2 = fork();
         if (pid2 == 0) {
+            // sock_fd -> encode -> output_fd
+            sprintf(config->argv0, "@:%cps", config->log_prefix[0]);
+
             FILE *log_file = NULL;
             if (config->log_port_stdio_file) {
                 log_file = fopen(config->log_port_stdio_file, "w");
             }
             
+            // close unnecessary fds
+            if (!config->quiet) {
+                fprintf(stderr, "socket -> encode -> stream: close fds\n");
+            }
+
+            close(input_fd);
+
+            if (!config->quiet) {
+                fprintf(stderr, "socket -> encode -> stream: start handling\n");
+            }
+
             process_data_stream(sockfd, output_fd, ENCODE_MODE, config, log_file,
                               "toenc:", "from socket: EOF detected");
-            
+            close(sockfd);
+            close(output_fd);
             exit(0);
         } else if (pid2 > 0) {
+            // parent
+            sprintf(config->argv0, "@:%c:w", config->log_prefix[0]);
+
             int status;
-            waitpid(pid1, &status, 0);
-            waitpid(pid2, &status, 0);
+            close(input_fd);
+            close(output_fd);
+            close(sockfd);
+            
+            pid_t wpid;
+            int remaining = 2;
+
+            while (remaining > 0) {
+                wpid = waitpid(-1, &status, 0);  // 終了した子1つを待つ
+                if (wpid == -1) {
+                    break;
+                }
+                remaining--;
+            }
         } else {
+            // 2度目のforkに失敗した。ひとつめを終了させる
             perror("fork");
             kill(pid1, SIGTERM);
             waitpid(pid1, NULL, 0);
@@ -234,10 +281,14 @@ void handle_connection(int sockfd, const config_t *config) {
         int from_cmd_fd = from_child_pipe[0];
 
         handle_connection_common(sockfd, from_cmd_fd, to_cmd_fd, config);
-        
+
+        if (!config->quiet) {
+            fprintf(stderr, "shell exited.\n");
+        }
+
         close(to_cmd_fd);
         close(from_cmd_fd);
-        
+
         if (cmd_pid > 0) {
             int status;
             kill(cmd_pid, SIGTERM);
