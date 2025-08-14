@@ -18,7 +18,7 @@
 
 #define BUFFER_SIZE 256
 #define MAX_ENCODED_SIZE (BUFFER_SIZE * 4)
-#define TRANS_VERSION "1.0.2"
+#define TRANS_VERSION "1.0.3"
 
 typedef enum {
     METHOD_UUENCODE,
@@ -40,6 +40,7 @@ typedef struct {
     char *log_port_stdio_file;
     char *log_stdio_port_file;
     char *log_prefix;
+    int delay_seconds;
 } config_t;
 
 // エンコード/デコード関数

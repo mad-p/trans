@@ -62,3 +62,7 @@
     - `--lr` :  `--log-prefix r --lps log_rps.log --lsp log_rsp.log` と同じ意味
 
 process_data_streamからデコード前のバッファ内容をhex_dump_to_fileにダンプするとき、remaining_bytesの分が考りょされていません。デコードが完了してから出力し、remaining_bytesの分は出力しないようにしてください。残した分は次回のループで出力されるはずです
+
+- --delay (-d) オプションを追加します。-dの引数は整数で秒数を表わします
+    - fromモードのとき、ポートをacceptしてから、handle_connectionを実行するまでに指定された時間だけ待ちます
+    - toモードのとき、ポートにconnectしてから、handle_connectionを実行するまでに指定された時間だけ待ちます

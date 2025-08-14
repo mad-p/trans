@@ -319,6 +319,14 @@ int sender_mode(const config_t *config) {
         fprintf(stderr, "Connected to server\n");
     }
     
+    // delayが設定されている場合は待機
+    if (config->delay_seconds > 0) {
+        if (!config->quiet) {
+            fprintf(stderr, "Waiting %d seconds before handling connection...\n", config->delay_seconds);
+        }
+        sleep(config->delay_seconds);
+    }
+    
     // 接続処理
     handle_connection(client_sock, config);
     
@@ -393,6 +401,15 @@ int receiver_mode(const config_t *config) {
         if (connection_pid == 0) {
             // 子プロセス: この接続を処理
             close(server_sock); // 子プロセスではサーバーソケットは不要
+            
+            // delayが設定されている場合は待機
+            if (config->delay_seconds > 0) {
+                if (!config->quiet) {
+                    fprintf(stderr, "Waiting %d seconds before handling connection...\n", config->delay_seconds);
+                }
+                sleep(config->delay_seconds);
+            }
+            
             handle_connection(client_sock, config);
             close(client_sock);
             if (!config->quiet) {

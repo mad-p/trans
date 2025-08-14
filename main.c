@@ -44,6 +44,7 @@ void print_usage(const char *program_name) {
     fprintf(stderr, "  -h, --host             Host (for sender mode, default: 127.0.0.1)\n");
     fprintf(stderr, "  -e, --encode           Encoding method: uuencode or escape (default: escape)\n");
     fprintf(stderr, "  -s, --system           Connect to command instead of stdio\n");
+    fprintf(stderr, "  -d, --delay            Delay in seconds before start communication\n");
     fprintf(stderr, "  -q, --quiet            Suppress stderr output\n");
     fprintf(stderr, "      --lps, --log-port-stdio  Log port->stdio/command traffic (hex dump)\n");
     fprintf(stderr, "      --lsp, --log-stdio-port  Log stdio/command->port traffic (hex dump)\n");
@@ -61,6 +62,7 @@ void parse_arguments(int argc, char *argv[], config_t *config) {
         {"host", required_argument, 0, 'h'},
         {"encode", required_argument, 0, 'e'},
         {"system", required_argument, 0, 's'},
+        {"delay", required_argument, 0, 'd'},
         {"quiet", no_argument, 0, 'q'},
         {"log-port-stdio", required_argument, 0, 1000},
         {"lps", required_argument, 0, 1000},
@@ -79,6 +81,7 @@ void parse_arguments(int argc, char *argv[], config_t *config) {
     config->method = METHOD_ESCAPE;
     config->host = "127.0.0.1";
     config->system_command = NULL;
+    config->delay_seconds = 0;
     config->quiet = 0;
     config->log_port_stdio_file = NULL;
     config->log_stdio_port_file = NULL;
@@ -87,7 +90,7 @@ void parse_arguments(int argc, char *argv[], config_t *config) {
     int c;
     int option_index = 0;
 
-    while ((c = getopt_long(argc, argv, "m:p:h:e:s:q", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(argc, argv, "m:p:h:e:s:d:q", long_options, &option_index)) != -1) {
         switch (c) {
             case 'm':
                 if (strcmp(optarg, "send") == 0 || strcmp(optarg, "to") == 0) {
@@ -121,6 +124,13 @@ void parse_arguments(int argc, char *argv[], config_t *config) {
                 break;
             case 's':
                 config->system_command = optarg;
+                break;
+            case 'd':
+                config->delay_seconds = atoi(optarg);
+                if (config->delay_seconds < 0) {
+                    fprintf(stderr, "Error: Invalid delay value '%s'\n", optarg);
+                    exit(1);
+                }
                 break;
             case 'q':
                 config->quiet = 1;
