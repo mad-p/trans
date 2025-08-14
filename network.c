@@ -47,10 +47,20 @@ static void process_and_output_buffer(process_mode_t mode, FILE *log_file, const
 
         ssize_t written = write(output_fd, output_buffer + bytes_written,
                               *bytes_processed - bytes_written);
-        if (written <= 0) {
-            log_message(log_file, config, "write failed\n");
-            log_message(log_file, config, strerror(errno));
-            exit(1);
+        if (written == EAGAIN) {
+            if (log_file) {
+                log_message(log_file, config, "EAGAIN\n");
+            }
+            sleep(1);
+            continue;
+        }
+        if (log_file) {
+            if (written <= 0) {
+                char mes[BUFSIZ];
+                sprintf(mes, "write failed: %s\n", strerror(errno));
+                log_message(log_file, config, mes);
+                exit(1);
+            }
         }
         bytes_written += (size_t)written;
     }
