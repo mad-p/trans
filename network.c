@@ -47,17 +47,20 @@ static void process_and_output_buffer(process_mode_t mode, FILE *log_file, const
 
         ssize_t written = write(output_fd, output_buffer + bytes_written,
                               *bytes_processed - bytes_written);
-        if (written == EAGAIN) {
+        if (written == EWOULDBLOCK) {
             if (log_file) {
-                log_message(log_file, config, "EAGAIN\n");
+                log_message(log_file, config, "EWOULDBLOCK\n");
             }
-            sleep(1);
+            struct timespec ts;
+            ts.tv_sec = 0;
+            ts.tv_nsec = 200 * 1000 * 1000; // 200ms = 200,000,000ns
+            nanosleep(&ts, NULL);
             continue;
         }
         if (log_file) {
             if (written <= 0) {
                 char mes[BUFSIZ];
-                sprintf(mes, "write failed: %s\n", strerror(errno));
+                sprintf(mes, "write failed: %s (%d)\n", strerror(errno), errno);
                 log_message(log_file, config, mes);
                 exit(1);
             }
