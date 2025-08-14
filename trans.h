@@ -13,12 +13,13 @@
 #include <signal.h>
 #include <time.h>
 #include <sys/time.h>
+#include <sys/errno.h>
 #include <fcntl.h>
 #include <poll.h>
 
 #define BUFFER_SIZE 256
 #define MAX_ENCODED_SIZE (BUFFER_SIZE * 4)
-#define TRANS_VERSION "1.2.2"
+#define TRANS_VERSION "1.2.3"
 
 typedef enum {
     METHOD_UUENCODE,

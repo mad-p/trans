@@ -48,7 +48,8 @@ static void process_and_output_buffer(process_mode_t mode, FILE *log_file, const
         ssize_t written = write(output_fd, output_buffer + bytes_written,
                               *bytes_processed - bytes_written);
         if (written <= 0) {
-            log_message(log_file, config, "write failed");
+            log_message(log_file, config, "write failed\n");
+            log_message(log_file, config, strerror(errno));
             exit(1);
         }
         bytes_written += (size_t)written;
