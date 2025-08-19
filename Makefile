@@ -2,6 +2,10 @@ CC = gcc
 CFLAGS = -Wall -Wextra -std=c99 -pedantic -O
 TARGET = trans
 ENCODE = escape
+HOST = localhost
+LOCAL_PORT = 20022
+ARGS =
+VNC_PORT = 5903
 TEST_TARGET = test_encode
 SOURCES = main.c encode.c network.c
 TEST_SOURCES = test_encode.c encode.c
@@ -51,6 +55,15 @@ help:
 	@echo "  release  - Build optimized release version"
 	@echo "  help     - Show this help message"
 
+tunnel:
+	./trans -m from -p $(LOCAL_PORT) -d 6 -s "ssh -tt -e none -o StritcHostKeyChecking=no -o UserKnownHostsFile=/dev/null $(HOST)"
+
+ssh:
+	ssh -v -o StritcHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p $(LOCAL_PORT) -L$(VNC_PORT):localhost:5900 127.0.0.1 $(ARGS)
+
+vnc:
+	open "vnc://localhost:$(VNC_PORT)/"
+
 test_connect:
 	./trans -m from -e $(ENCODE) -p $(TEST_READ_PORT) --ll -s "./trans -q -m to -e $(ENCODE) --lr -p $(TEST_WRITE_PORT)"
 
@@ -67,10 +80,10 @@ test_check_dump:
 	./dump_checker.rb log*.log | less
 
 test_tunnel:
-	./trans -e $(ENCODE) -m from -p 20022 -d 8 --ll -s "ssh -tt -e none localhost 'stty raw -icanon -echo; cd $(PWD); ./trans -e $(ENCODE) -q -m to --lr -p 22 -d 1'"
+	./trans -e $(ENCODE) -m from -p $(LOCAL_PORT) -d 8 --ll -s "ssh -tt -e none localhost 'stty raw -icanon -echo; cd $(PWD); ./trans -e $(ENCODE) -q -m to --lr -p 22 -d 1'"
 
 test_ssh:
-	ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -v localhost -p 20022
+	ssh -o StritcHostKeyChecking=no -o UserKnownHostsFile=/dev/null -v localhost -p $(LOCAL_PORT)
 
 test_watch:
 	watch -n 2 "ps augxww | egrep '@:|trans' | sort"
