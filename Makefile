@@ -61,6 +61,9 @@ tunnel:
 ssh:
 	ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p $(LOCAL_PORT) -L$(VNC_PORT):localhost:5900 127.0.0.1 $(ARGS)
 
+ssh-runner:
+	$(MAKE) ssh ARGS="-l runner /opt/homebrew/bin/tmux attach -t upterm"
+
 vnc:
 	open "vnc://localhost:$(VNC_PORT)/"
 
