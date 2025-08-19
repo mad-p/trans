@@ -56,10 +56,10 @@ help:
 	@echo "  help     - Show this help message"
 
 tunnel:
-	./trans -m from -p $(LOCAL_PORT) -d 6 -s "ssh -tt -e none -o StritcHostKeyChecking=no -o UserKnownHostsFile=/dev/null $(HOST)"
+	./trans -m from -p $(LOCAL_PORT) -d 6 -s "ssh -tt -e none -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $(HOST)"
 
 ssh:
-	ssh -v -o StritcHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p $(LOCAL_PORT) -L$(VNC_PORT):localhost:5900 127.0.0.1 $(ARGS)
+	ssh -v -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p $(LOCAL_PORT) -L$(VNC_PORT):localhost:5900 127.0.0.1 $(ARGS)
 
 vnc:
 	open "vnc://localhost:$(VNC_PORT)/"
@@ -83,7 +83,7 @@ test_tunnel:
 	./trans -e $(ENCODE) -m from -p $(LOCAL_PORT) -d 8 --ll -s "ssh -tt -e none localhost 'stty raw -icanon -echo; cd $(PWD); ./trans -e $(ENCODE) -q -m to --lr -p 22 -d 1'"
 
 test_ssh:
-	ssh -o StritcHostKeyChecking=no -o UserKnownHostsFile=/dev/null -v localhost -p $(LOCAL_PORT)
+	ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -v localhost -p $(LOCAL_PORT)
 
 test_watch:
 	watch -n 2 "ps augxww | egrep '@:|trans' | sort"
