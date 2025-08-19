@@ -59,7 +59,7 @@ tunnel:
 	./trans -m from -p $(LOCAL_PORT) -d 6 -s "ssh -tt -e none -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $(HOST)"
 
 ssh:
-	ssh -v -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p $(LOCAL_PORT) -L$(VNC_PORT):localhost:5900 127.0.0.1 $(ARGS)
+	ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p $(LOCAL_PORT) -L$(VNC_PORT):localhost:5900 127.0.0.1 $(ARGS)
 
 vnc:
 	open "vnc://localhost:$(VNC_PORT)/"
